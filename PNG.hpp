@@ -17,6 +17,7 @@
 #define PNG_IHDR_SIZE 13
 #define PNG_IEND_SIZE 0
 
+// コンパイル時に -lz を指定してください
 class PNG{
 	public:
 
@@ -36,6 +37,16 @@ class PNG{
 
 	PNG(const std::string & path){
 		read(path);
+	}
+
+	PNG & operator=(const PNG & other){
+		if(this != &other){
+			Width = other.Width;
+			Height = other.Height;
+			ImageData = other.ImageData;
+			has_alpha = other.has_alpha;
+		}
+		return *this;
 	}
 
 
@@ -66,8 +77,6 @@ class PNG{
 
 		std::string chunk_type(4, '\0');
 		do{
-			if(ptr - PNGstream.data() + PNG_MINIMUM_CHUNK_SIZE > PNGstream.size()) return false;
-
 			uint32_t length = readData<uint32_t>(ptr, false);
 			std::copy(ptr, ptr + 4, chunk_type.data());
 			ptr += 4;
@@ -90,7 +99,7 @@ class PNG{
 				ptr += length;
 			}
 			ptr += 4; // CRC32
-		} while(chunk_type != "IEND");
+		} while(chunk_type != "IEND" && ptr + PNG_MINIMUM_CHUNK_SIZE <= &*PNGstream.end());
 
 		if(has_pallet){
 			if(!read_indexed_stream()) return false;
@@ -102,14 +111,13 @@ class PNG{
 		return true;
 	}
 
-	// lelel:compressLevel(0~9)
+	// lelel:圧縮レベル(0~9)
 	bool write(const std::string & path, uint8_t level = 7){
 		level = std::clamp(static_cast<int>(level), 0, 9);
 		filterer();
 		auto deflated_stream = deflate_RLE(filtered_stream, level);
 		PNGstream.resize(deflated_stream.size() + PNG_MINIMUM_SIZE);
 		uint8_t* ptr = PNGstream.data();
-		size_t index = 0;
 
 		std::copy(correct_signature.begin(), correct_signature.end(), ptr);
 		ptr += correct_signature.size();
@@ -132,7 +140,7 @@ class PNG{
 	std::vector<uint8_t> PNGstream;
 	std::vector<uint8_t> filtered_stream;
 
-	std::vector<RGBA<uint8_t>> pallet;
+	std::array<RGBA<uint8_t>, 256> pallet;
 
 
 	static constexpr std::array<uint8_t, 8> correct_signature = {137, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
@@ -161,14 +169,15 @@ class PNG{
 
 		if(Compression_method) return false;
 		if(Filter_method) return false;
-		if(Interlace_method) return false;
+		if(Interlace_method) return false; // インタレース非対応
 
 
-		if(Bit_depth != 8) return false; // 独自
-		if(Color_type != 2 && Color_type != 3 && Color_type != 6) return false; // 独自
+		/* 8BIT_RGB, 8BIT_RGBA, 8BIT_PLTE のみ対応 */
+		if(Bit_depth != 8) return false;
+		if(Color_type != 2 && Color_type != 3 && Color_type != 6) return false;
 
 		has_alpha = (Color_type == 4 || Color_type == 6);
-		has_pallet = Color_type == 3;
+		has_pallet = (Color_type == 3);
 		filtered_stream.resize((1 + Width * colorType2channel[Color_type]) * Height);
 		z.next_out = filtered_stream.data();
 		z.avail_out = filtered_stream.size();
@@ -189,23 +198,26 @@ class PNG{
 	}
 
 	bool read_PLTE(const uint8_t* & ptr, const uint32_t length){
-		if(length % 3) return false;
-		pallet.resize(length / 3);
-		for(auto & p : pallet){
-			p.R = *ptr++;
-			p.G = *ptr++;
-			p.B = *ptr++;
+		if(ptr - PNGstream.data() < 37) return false;
+		if(length > 256 * 3 || length % 3 > 0) return false;
+		uint16_t pallet_size = length / 3;
+		for(uint16_t i = 0; i < pallet_size; ++i){
+			pallet[i].R = *ptr++;
+			pallet[i].G = *ptr++;
+			pallet[i].B = *ptr++;
 		}
-		pallet.resize(256);
 		return true;
 	}
 
+	/*
+	   PLTEがある際に必ず使用
+	   範囲外の画素インデックスに対しては未定義の値が割り当てられる
+	*/
 	bool read_indexed_stream(){
-		size_t index = 0;
 		ImageData = IMAGE_RGBA<uint8_t>(Width, Height);
 		uint8_t* ptr = filtered_stream.data();
 		for(uint32_t h = 0; h < Height; ++h){
-			if(*(ptr++) != 0) return false;
+			if(*(ptr++) != 0) return false; // フィルタ方法は(0: none)のみ対応
 			for(uint32_t w = 0; w < Width; ++w){
 				(*this)[h][w] = pallet[*ptr++];
 			}
@@ -336,11 +348,11 @@ class PNG{
 		itr->B += *ptr++;
 		if(has_alpha) itr->A += *ptr++;
 		for(++itr; ++itr != line.end();){
-			(itr - 1)->R = paeth_predictor((itr - 2)->R, (itr - 1)->R, itr->R) + *ptr++;;
-			(itr - 1)->G = paeth_predictor((itr - 2)->G, (itr - 1)->G, itr->G) + *ptr++;;
-			(itr - 1)->B = paeth_predictor((itr - 2)->B, (itr - 1)->B, itr->B) + *ptr++;;
+			(itr - 1)->R = paeth_predictor((itr - 2)->R, (itr - 1)->R, itr->R) + *ptr++;
+			(itr - 1)->G = paeth_predictor((itr - 2)->G, (itr - 1)->G, itr->G) + *ptr++;
+			(itr - 1)->B = paeth_predictor((itr - 2)->B, (itr - 1)->B, itr->B) + *ptr++;
 			if(!has_alpha) continue;
-			(itr - 1)->A = paeth_predictor((itr - 2)->A, (itr - 1)->A, itr->A) + *ptr++;;
+			(itr - 1)->A = paeth_predictor((itr - 2)->A, (itr - 1)->A, itr->A) + *ptr++;
 		}
 		(itr - 1)->R = paeth_predictor((itr - 2)->R, (itr - 1)->R, up_line.back().R) + *ptr++;
 		(itr - 1)->G = paeth_predictor((itr - 2)->G, (itr - 1)->G, up_line.back().G) + *ptr++;
@@ -437,7 +449,6 @@ class PNG{
 
 	bool unfilterer(){
 		ImageData = IMAGE_RGBA<uint8_t>(Width, Height);
-		size_t index = 0;
 		uint8_t filter_type;
 		const uint8_t* ptr = filtered_stream.data();
 		for(uint32_t h = 0; h < Height; ++h){
@@ -482,17 +493,17 @@ class PNG{
 	}
 
 
-	std::vector<uint8_t> deflate_RLE(std::vector<uint8_t> & src, uint8_t level){
+	std::vector<uint8_t> deflate_RLE(std::vector<uint8_t> & src, uint8_t level = 7){
 		size_t dest_size = compressBound(src.size());
 		std::vector<uint8_t> res(dest_size);
 		z_stream z; z.zalloc = Z_NULL; z.zfree = Z_NULL; z.opaque = Z_NULL;
 		if(deflateInit2(
 			&z,
-			level, // compress level
+			level, // 圧縮レベル
 			Z_DEFLATED,
-			15, // window size maximum was best, idk why
-			8, // memLevel 8 (not maximum) was best, idk why
-			Z_RLE // good with filtered PNG
+			15, // ウィンドウサイズは最大
+			8, // 手元だと 8 が最も良かった
+			Z_RLE // ランレングス圧縮
 		) != Z_OK) return {};
 		z.next_in = src.data();
 		z.avail_in = src.size();
