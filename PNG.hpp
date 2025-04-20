@@ -17,6 +17,13 @@
 #define PNG_IHDR_SIZE 13
 #define PNG_IEND_SIZE 0
 
+/*
+特筆すべき事項:
+	RGBA8及びRGB8及びindexed-RGB8のみ対応
+	IHDR, IDAT, IEND, PLTE以外のチャンクに非対応
+	read関数におけるCRC全無視
+	エラーハンドリング未実装
+*/
 // コンパイル時に -lz を指定してください
 class PNG{
 	public:
@@ -522,3 +529,23 @@ class PNG{
 };
 
 #endif
+
+
+// 付け足すべき警告等
+/*
+chunk out-of-range
+unknown chunk
+ -official
+ -critical
+ -none critical
+zlib error
+APNG chunk
+unsupported chunk (for this program)
+unsupported bitdepth {1, 2, 4, 16}
+unsupperted color {grayscale}
+unsupperted (interace mode)
+no IEND
+no IHDR
+no IDAT
+no PLTE for indexed-color
+*/
