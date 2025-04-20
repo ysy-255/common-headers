@@ -1,8 +1,7 @@
 #ifndef FILE_HPP
 #define FILE_HPP
 
-#include <bits/stdint-intn.h>
-#include <bits/stdint-uintn.h>
+#include <cstdint>
 
 #include <fstream>
 #include <filesystem>

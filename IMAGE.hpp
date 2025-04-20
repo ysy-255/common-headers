@@ -1,7 +1,7 @@
 #ifndef IMAGE_HPP
 #define IMAGE_HPP
 
-#include <bits/stdint-uintn.h>
+#include <cstdint>
 #include <vector>
 
 template<typename T>
