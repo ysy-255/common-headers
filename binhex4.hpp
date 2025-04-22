@@ -18,7 +18,13 @@ namespace binhex4{
 		std::ifstream ifs = std::ifstream(path);
 		std::string comment;
 		std::getline(ifs, comment);
-		//if(comment != correct_comment) return {};
+		while(!comment.empty()){
+			if(comment.back() == '\r'){
+				comment.pop_back();
+			}
+			else break;
+		}
+		if(comment != correct_comment) return {};
 		char start;
 		ifs >> start;
 		if(start != ':') return {};
@@ -28,20 +34,17 @@ namespace binhex4{
 		}
 		if(raw.size() < 2) return {};
 		if(raw.back() == ':') raw.pop_back();
-		std::vector<uint8_t> stream; stream.reserve(((raw.size() * 6 + 7) >> 3));
+		std::vector<uint8_t> stream; stream.reserve(raw.size());
 		bool mode90 = false;
 		auto f = [&](){
 			if(mode90){
-				if(stream.back() == 0x90){
+				uint8_t times = stream.back();
+				stream.pop_back();
+				if(times != 0){
+					times --;
 					stream.pop_back();
-				}
-				else{
-					uint8_t times = stream.back();
-					stream.pop_back();
-					stream.pop_back();
-					for(uint8_t i = 1; i < times; ++i){
-						stream.push_back(stream.back());
-					}
+					uint8_t ch = stream.back();
+					stream.resize(stream.size() + times, ch);
 				}
 				mode90 = false;
 			}
