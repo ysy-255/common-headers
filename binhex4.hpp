@@ -3,7 +3,7 @@
 #include "FILE.hpp"
 
 namespace binhex4{
-	constexpr uint8_t table[] = {
+	std::vector<uint8_t> table = {
 		0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
 		0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
 		   0,0x00,0x01,0x02, 0x03,0x04,0x05,0x06, 0x07,0x08,0x09,0x0A, 0x0B,0x0C,   0,   0,
@@ -17,13 +17,12 @@ namespace binhex4{
 	std::vector<uint8_t> read_simple(const std::string & path){
 		std::ifstream ifs = std::ifstream(path);
 		std::string comment;
-		std::getline(ifs, comment);
-		while(!comment.empty()){
-			if(comment.back() == '\r'){
-				comment.pop_back();
-			}
-			else break;
+		char ch;
+		while(ifs.get(ch)){
+			if(ch == '\n' || ch == '\r') break;
+			else comment.push_back(ch);
 		}
+		comment.resize(correct_comment.size());
 		if(comment != correct_comment) return {};
 		char start;
 		ifs >> start;
@@ -53,11 +52,11 @@ namespace binhex4{
 			}
 		};
 		for(auto itr = raw.begin(), end = raw.begin() + (raw.size() >> 2 << 2); itr != end; itr += 4){
-			stream.emplace_back(table[*(itr + 0)] << 2 | table[*(itr + 1)] >> 4);
+			stream.emplace_back(table.at(*(itr + 0)) << 2 | table.at(*(itr + 1)) >> 4);
 			f();
-			stream.emplace_back(table[*(itr + 1)] << 4 | table[*(itr + 2)] >> 2);
+			stream.emplace_back(table.at(*(itr + 1)) << 4 | table.at(*(itr + 2)) >> 2);
 			f();
-			stream.emplace_back(table[*(itr + 2)] << 6 | table[*(itr + 3)] >> 0);
+			stream.emplace_back(table.at(*(itr + 2)) << 6 | table.at(*(itr + 3)) >> 0);
 			f();
 		}
 		// ↑あまりは無視しました
