@@ -1,11 +1,10 @@
 #include <iostream>
-#include <array>
 
 #include "FILE.hpp"
 
 namespace binhex4{
 	/* !"#$%&'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr */
-	const std::array<uint8_t, 0x53> table = {
+	const uint8_t table[] = {
 		   0,0x00,0x01,0x02, 0x03,0x04,0x05,0x06, 0x07,0x08,0x09,0x0A, 0x0B,0x0C,   0,   0,
 		0x0D,0x0E,0x0F,0x10, 0x11,0x12,0x13,   0, 0x14,0x15,   0,   0,    0,   0,   0,   0,
 		0x16,0x17,0x18,0x19, 0x1A,0x1B,0x1C,0x1D, 0x1E,0x1F,0x20,0x21, 0x22,0x23,0x24,   0,
@@ -18,63 +17,48 @@ namespace binhex4{
 		const auto raw = readFile(path);
 		auto l = raw.begin(), r = raw.end();
 		l = std::find(l, r, '(');
-		if(r - l < correct_comment.size() + 3) return {};
+		if(l + correct_comment.size() + 3 > r) return {};
 		if(!std::equal(correct_comment.begin(), correct_comment.end(), l)) return {};
 		l += correct_comment.size();
 		l = std::find(l, r, ':');
-		if(r - l < 2) return {};
+		if(l + 2 > r) return {};
 		l ++;
 		while(l != r) if(*--r == ':') break;
+		if(l == r) return {};
 		std::vector<uint8_t> stream; stream.reserve(r - l);
 
 		bool mode90 = false;
-		auto f = [&](){
-			if(mode90){
-				uint8_t times = stream.back();
-				stream.pop_back(); // times
-				if(times != 0){
-					times --;
-					stream.pop_back(); // 0x90
-					uint8_t ch = stream.back();
-					stream.resize(stream.size() + times, ch);
-				}
-				mode90 = false;
-			}
-			else if(stream.back() == 0x90){
-				mode90 = true;
-			}
-		};
 		for(uint8_t cnt = 0; l != r; l++){
 			uint8_t ch = *l;
 			ch -= 0x20;
 			if(ch >= 0x53) continue;
 			ch = table[ch];
-			switch(cnt++ & 0b11){
-				case 0:{
-					stream.push_back(ch << 2);
-					break;
+			if(cnt > 0){
+				stream.back() |= ch >> (6 - cnt);
+				if(mode90){
+					uint8_t times = stream.back();
+					stream.pop_back(); // times
+					if(times != 0){
+						times --;
+						stream.pop_back(); // 0x90
+						uint8_t ch = stream.back();
+						stream.resize(stream.size() + times, ch);
+					}
+					mode90 = false;
 				}
-				case 1:{
-					stream.back() |= ch >> 4;
-					f();
-					stream.push_back(ch << 4);
-					break;
-				}
-				case 2:{
-					stream.back() |= ch >> 2;
-					f();
-					stream.push_back(ch << 6);
-					break;
-				}
-				case 3:{
-					stream.back() |= ch >> 0;
-					f();
-					break;
+				else{
+					mode90 = stream.back() == 0x90;
 				}
 			}
+			cnt += 2;
+			if(cnt < 8){
+				stream.push_back(ch << cnt);
+			}
+			cnt &= 0b110;
 		}
 
 		size_t idx = stream.front() + 12;
+		if(stream.size() < idx + 4) return {};
 		const uint8_t* i = &stream[idx];
 		size_t sz = readData<uint32_t>(i, false);
 		size_t res_l = std::min(idx + 10, stream.size());
@@ -82,3 +66,19 @@ namespace binhex4{
 		return std::vector<uint8_t>(stream.begin() + res_l, stream.begin() + res_r);
 	}
 }
+
+/*
+	[1] Length of FileName;
+	[Length of FileName]  FileName;
+	[1] Version;
+	[4] Type;
+	[4] Creator;
+	[2] Flags;
+	[4] Length of Data;
+	[4] Length of Resource;
+	[2] CRC;
+	[Length of Data] Data;
+	[2] CRC;
+	[Length of Resource] Resource;
+	[2] CRC;
+*/
