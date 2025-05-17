@@ -58,15 +58,15 @@ inline T readData(const uint8_t* & ptr, const bool is_little_endian){
 	return res;
 }
 template<typename T>
-inline T readData(std::vector<uint8_t>::const_iterator & ptr, const bool is_little_endian){
+inline T readData(std::vector<uint8_t>::const_iterator & itr, const bool is_little_endian){
 	T res;
 	if(is_little_endian == SYSTEM_LITTLE_ENDIAN){
-		std::copy(ptr, ptr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+		std::copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
 	}
 	else{
-		std::reverse_copy(ptr, ptr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+		std::reverse_copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
 	}
-	ptr += sizeof(T);
+	itr += sizeof(T);
 	return res;
 }
 
@@ -82,14 +82,14 @@ inline void writeData(uint8_t* & ptr, const T value, const bool is_little_endian
 	return;
 }
 template<typename T>
-inline void writeData(std::vector<uint8_t>::const_iterator & ptr, const T value, const bool is_little_endian){
+inline void writeData(std::vector<uint8_t>::const_iterator & itr, const T value, const bool is_little_endian){
 	if(is_little_endian == SYSTEM_LITTLE_ENDIAN){
-		std::copy(reinterpret_cast<const uint8_t*>(&value), reinterpret_cast<const uint8_t*>(&value) + sizeof(T), ptr);
+		std::copy(reinterpret_cast<const uint8_t*>(&value), reinterpret_cast<const uint8_t*>(&value) + sizeof(T), itr);
 	}
 	else{
-		std::reverse_copy(reinterpret_cast<const uint8_t*>(&value), reinterpret_cast<const uint8_t*>(&value) + sizeof(T), ptr);
+		std::reverse_copy(reinterpret_cast<const uint8_t*>(&value), reinterpret_cast<const uint8_t*>(&value) + sizeof(T), itr);
 	}
-	ptr += sizeof(T);
+	itr += sizeof(T);
 	return;
 }
 
