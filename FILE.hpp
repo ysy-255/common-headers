@@ -10,9 +10,9 @@
 #include <algorithm>
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	const bool SYSTEM_LITTLE_ENDIAN = true;
+	inline constexpr bool SYSTEM_LITTLE_ENDIAN = true;
 #else
-	const bool SYSTEM_LITTLE_ENDIAN = false;
+	inline constexpr bool SYSTEM_LITTLE_ENDIAN = false;
 #endif
 
 inline std::vector<uint8_t> readFile(const std::string & path){
@@ -45,20 +45,8 @@ inline std::vector<std::string> getFileList(const std::string & folder_path){
 	return result;
 }
 
-template<typename T>
-inline T readData(const uint8_t* & ptr, const bool is_little_endian){
-	T res;
-	if(is_little_endian == SYSTEM_LITTLE_ENDIAN){
-		std::copy(ptr, ptr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
-	}
-	else{
-		std::reverse_copy(ptr, ptr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
-	}
-	ptr += sizeof(T);
-	return res;
-}
-template<typename T>
-inline T readData(std::vector<uint8_t>::const_iterator & itr, const bool is_little_endian){
+template<typename T, typename Iter>
+inline T readValue(Iter & itr, const bool is_little_endian){
 	T res;
 	if(is_little_endian == SYSTEM_LITTLE_ENDIAN){
 		std::copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
@@ -69,28 +57,76 @@ inline T readData(std::vector<uint8_t>::const_iterator & itr, const bool is_litt
 	itr += sizeof(T);
 	return res;
 }
-
-template<typename T>
-inline void writeData(uint8_t* & ptr, const T value, const bool is_little_endian){
-	if(is_little_endian == SYSTEM_LITTLE_ENDIAN){
-		std::copy(reinterpret_cast<const uint8_t*>(&value), reinterpret_cast<const uint8_t*>(&value) + sizeof(T), ptr);
+template<typename T, typename Iter>
+inline T readBE(Iter & itr){
+	T res;
+	if constexpr (SYSTEM_LITTLE_ENDIAN){
+		std::reverse_copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
 	}
 	else{
-		std::reverse_copy(reinterpret_cast<const uint8_t*>(&value), reinterpret_cast<const uint8_t*>(&value) + sizeof(T), ptr);
-	}
-	ptr += sizeof(T);
-	return;
-}
-template<typename T>
-inline void writeData(std::vector<uint8_t>::const_iterator & itr, const T value, const bool is_little_endian){
-	if(is_little_endian == SYSTEM_LITTLE_ENDIAN){
-		std::copy(reinterpret_cast<const uint8_t*>(&value), reinterpret_cast<const uint8_t*>(&value) + sizeof(T), itr);
-	}
-	else{
-		std::reverse_copy(reinterpret_cast<const uint8_t*>(&value), reinterpret_cast<const uint8_t*>(&value) + sizeof(T), itr);
+		std::copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
 	}
 	itr += sizeof(T);
-	return;
+	return res;
+}
+template<typename T, typename Iter>
+inline T readLE(Iter & itr){
+	T res;
+	if constexpr (SYSTEM_LITTLE_ENDIAN){
+		std::copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+	}
+	else{
+		std::reverse_copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+	}
+	itr += sizeof(T);
+	return res;
+}
+
+template<typename T, typename Iter>
+inline void writeValue(Iter & itr, const T value, const bool is_little_endian){
+	const uint8_t* src = reinterpret_cast<const uint8_t*>(&value);
+	if(is_little_endian == SYSTEM_LITTLE_ENDIAN){
+		std::copy(src, src + sizeof(T), itr);
+	}
+	else{
+		std::reverse_copy(src, src + sizeof(T), itr);
+	}
+	itr += sizeof(T);
+}
+template<typename T, typename Iter>
+inline void writeBE(Iter & itr, const T value){
+	const uint8_t* src = reinterpret_cast<const uint8_t*>(&value);
+	if constexpr (SYSTEM_LITTLE_ENDIAN){
+		std::reverse_copy(src, src + sizeof(T), itr);
+	}
+	else{
+		std::copy(src, src + sizeof(T), itr);
+	}
+	itr += sizeof(T);
+}
+template<typename T, typename Iter>
+inline void writeLE(Iter & itr, const T value){
+	const uint8_t* src = reinterpret_cast<const uint8_t*>(&value);
+	if constexpr (SYSTEM_LITTLE_ENDIAN){
+		std::copy(src, src + sizeof(T), itr);
+	}
+	else{
+		std::reverse_copy(src, src + sizeof(T), itr);
+	}
+	itr += sizeof(T);
+}
+
+template<typename Iter>
+inline std::string readString(Iter & itr, const size_t size){
+	std::string res(itr, itr + size);
+	itr += size;
+	return res;
+}
+template<typename Iter>
+inline std::vector<uint8_t> readStream(Iter & itr, const size_t size){
+	std::vector res(itr, itr + size);
+	itr += size;
+	return res;
 }
 
 #endif

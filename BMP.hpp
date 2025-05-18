@@ -71,26 +71,26 @@ class BMP{
 		if(!std::equal(ptr, ptr + 2, correct_bfType.data())) return false;
 		ptr += 2;
 
-		uint32_t bfSize = readData<uint32_t>(ptr, true);
-		uint16_t bfReserved1 = readData<uint16_t>(ptr, true);
-		uint16_t bfReserved2 = readData<uint16_t>(ptr, true);
-		uint32_t bfOffBits = readData<uint32_t>(ptr, true);
+		uint32_t bfSize = readLE<uint32_t>(ptr);
+		uint16_t bfReserved1 = readLE<uint16_t>(ptr);
+		uint16_t bfReserved2 = readLE<uint16_t>(ptr);
+		uint32_t bfOffBits = readLE<uint32_t>(ptr);
 		return true;
 	}
 
 	bool read_INFOHEADER(const uint8_t* & ptr){
-		uint32_t biSize = readData<uint32_t>(ptr, true);
+		uint32_t biSize = readLE<uint32_t>(ptr);
 		if(biSize != BMP_INFOHEADER_SIZE) return false;
-		Width = readData<uint32_t>(ptr, true);
-		Height = readData<uint32_t>(ptr, true);
-		uint16_t biPlanes = readData<uint16_t>(ptr, true);
-		uint16_t biBitCount = readData<uint16_t>(ptr, true);
-		uint32_t biCompression = readData<uint32_t>(ptr, true);
-		uint32_t biSizeImage = readData<uint32_t>(ptr, true);
-		uint32_t biXPelsPerMeter = readData<uint32_t>(ptr, true);
-		uint32_t biYPelsPerMeter = readData<uint32_t>(ptr, true);
-		uint32_t biClrUsed = readData<uint32_t>(ptr, true);
-		uint32_t biClrImportant = readData<uint32_t>(ptr, true);
+		Width = readLE<uint32_t>(ptr);
+		Height = readLE<uint32_t>(ptr);
+		uint16_t biPlanes = readLE<uint16_t>(ptr);
+		uint16_t biBitCount = readLE<uint16_t>(ptr);
+		uint32_t biCompression = readLE<uint32_t>(ptr);
+		uint32_t biSizeImage = readLE<uint32_t>(ptr);
+		uint32_t biXPelsPerMeter = readLE<uint32_t>(ptr);
+		uint32_t biYPelsPerMeter = readLE<uint32_t>(ptr);
+		uint32_t biClrUsed = readLE<uint32_t>(ptr);
+		uint32_t biClrImportant = readLE<uint32_t>(ptr);
 
 		if(biPlanes != 1) return false;
 		if(biBitCount != 24) return false;
@@ -117,25 +117,25 @@ class BMP{
 	void write_FILEHEADER(uint8_t* & ptr){
 		std::copy(correct_bfType.begin(), correct_bfType.end(), ptr);
 		ptr += correct_bfType.size();
-		writeData<uint32_t>(ptr, BMPstream.size(), true);
-		writeData<uint16_t>(ptr, 0, true);
-		writeData<uint16_t>(ptr, 0, true);
-		writeData<uint32_t>(ptr, BMP_MINIMUM_SIZE, true);
+		writeLE<uint32_t>(ptr, BMPstream.size());
+		writeLE<uint16_t>(ptr, 0);
+		writeLE<uint16_t>(ptr, 0);
+		writeLE<uint32_t>(ptr, BMP_MINIMUM_SIZE);
 		return;
 	}
 
 	void write_INFOHEADER(uint8_t* & ptr){
-		writeData<uint32_t>(ptr, BMP_INFOHEADER_SIZE, true);
-		writeData<uint32_t>(ptr, Width, true);
-		writeData<uint32_t>(ptr, Height, true);
-		writeData<uint16_t>(ptr, 1, true);
-		writeData<uint16_t>(ptr, 24, true);
-		writeData<uint32_t>(ptr, 0, true);
-		writeData<uint32_t>(ptr, 0, true);
-		writeData<uint32_t>(ptr, 0, true);
-		writeData<uint32_t>(ptr, 0, true);
-		writeData<uint32_t>(ptr, 0, true);
-		writeData<uint32_t>(ptr, 0, true);
+		writeLE<uint32_t>(ptr, BMP_INFOHEADER_SIZE);
+		writeLE<uint32_t>(ptr, Width);
+		writeLE<uint32_t>(ptr, Height);
+		writeLE<uint16_t>(ptr, 1);
+		writeLE<uint16_t>(ptr, 24);
+		writeLE<uint32_t>(ptr, 0);
+		writeLE<uint32_t>(ptr, 0);
+		writeLE<uint32_t>(ptr, 0);
+		writeLE<uint32_t>(ptr, 0);
+		writeLE<uint32_t>(ptr, 0);
+		writeLE<uint32_t>(ptr, 0);
 		return;
 	}
 

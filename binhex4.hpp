@@ -21,7 +21,8 @@ namespace binhex4{
 		INCORRECT_COMMENT, // 最初のコメント行が間違っています
 		UNRECOGNIZABLE, // BinHex4.0として認識できませんでした
 		OUT_OF_TABLE, // BinHex4.0で定義されているテーブル外の英数記号が用いられています
-		FAULTY_DATA // 解凍後のデータに不備がありました
+		FAULTY_DATA, // 解凍後のデータに不備がありました
+		CRC_ERROR // データの欠損があるかもしれません
 	};
 
 	namespace detail{
@@ -40,7 +41,7 @@ namespace binhex4{
 		const std::string correct_comment = "(This file must be converted with BinHex 4.0)";
 		const uint8_t comment_size = correct_comment.size();
 
-		enum Err adjustLR(
+		enum Err trimLR(
 			std::vector<uint8_t>::const_iterator & l,
 			std::vector<uint8_t>::const_iterator & r
 		){
@@ -56,7 +57,7 @@ namespace binhex4{
 			return Err::NONE;
 		}
 
-		enum Err converse(
+		enum Err decode(
 			std::vector<uint8_t>::const_iterator & l,
 			std::vector<uint8_t>::const_iterator & r,
 			std::vector<uint8_t> & dst
@@ -96,51 +97,42 @@ namespace binhex4{
 
 		enum Err extract(const std::vector<uint8_t> & src, std::vector<uint8_t> & dst){
 			auto itr = src.begin(), end = src.end();
-			if(itr + 22 >= end) return Err::FAULTY_DATA;
-			uint8_t FileSize = *itr++;
-			if(itr + 22 + FileSize >= end) return Err::FAULTY_DATA;
-			last_FileName = std::string(itr, itr + FileSize);
-			itr += FileSize;
+			if(itr + 26 >= end) return Err::FAULTY_DATA;
+			uint8_t FileName_len = *itr++;
+			if(itr + FileName_len + 25 >= end) return Err::FAULTY_DATA;
+			last_FileName = readString(itr, FileName_len);
 			last_Version = *itr++;
-			last_Type = std::string(itr, itr + 4);
-			itr += 4;
-			last_Creator = std::string(itr, itr + 4);
-			itr += 4;
-			last_Flags = readData<uint16_t>(itr, false);
-			uint32_t Data_len = readData<uint32_t>(itr, false);
-			uint32_t Rsrc_len = readData<uint32_t>(itr, false);
-			uint16_t crc1 = readData<uint16_t>(itr, false);
+			last_Type = readString(itr, 4);
+			last_Creator = readString(itr, 4);
+			last_Flags = readBE<uint16_t>(itr);
+			uint32_t Data_len = readBE<uint32_t>(itr);
+			uint32_t Rsrc_len = readBE<uint32_t>(itr);
+			uint16_t crc1 = readBE<uint16_t>(itr);
 			if(itr + Data_len > end) return Err::FAULTY_DATA;
-			dst = std::vector<uint8_t>(itr, itr + Data_len);
-			itr += Data_len;
+			dst = readStream(itr, Data_len);
 			if(itr + 2 > end) return Err::FAULTY_DATA;
-			uint16_t crc2 = readData<uint16_t>(itr, false);
+			uint16_t crc2 = readBE<uint16_t>(itr);
 			if(itr + Rsrc_len > end) return Err::FAULTY_DATA;
-			last_Resource = std::vector<uint8_t>(itr, itr + Rsrc_len);
-			itr += Rsrc_len;
+			last_Resource = readStream(itr, Rsrc_len);
 			if(itr + 2 > end) return Err::FAULTY_DATA;
-			uint16_t crc3 = readData<uint16_t>(itr, false);
+			uint16_t crc3 = readBE<uint16_t>(itr);
 			return Err::NONE;
 		}
 	}
 
 	std::vector<uint8_t> read(const std::string & path){
 		using namespace detail;
+
 		const auto raw = readFile(path);
 		auto l = raw.begin(), r = raw.end();
-		last_error = adjustLR(l, r);
-		if(last_error != Err::NONE) return {};
+		if((last_error = trimLR(l, r)) != Err::NONE) return {};
 
 		std::vector<uint8_t> stream;
 		stream.reserve(r - l);
-
-		last_error = converse(l, r, stream);
-		if(last_error != Err::NONE) return {};
+		if((last_error = decode(l, r, stream)) != Err::NONE) return {};
 
 		std::vector<uint8_t> res;
-
-		last_error = extract(stream, res);
-		if(last_error != Err::NONE) return {};
+		if((last_error = extract(stream, res)) != Err::NONE) return {};
 
 		return res;
 	}

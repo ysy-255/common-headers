@@ -84,7 +84,7 @@ class PNG{
 
 		std::string chunk_type(4, '\0');
 		do{
-			uint32_t length = readData<uint32_t>(ptr, false);
+			uint32_t length = readBE<uint32_t>(ptr);
 			std::copy(ptr, ptr + 4, chunk_type.data());
 			ptr += 4;
 
@@ -166,8 +166,8 @@ class PNG{
 		uint8_t Filter_method = 0; // 0
 		uint8_t Interlace_method = 0; // 0:no 1:has
 
-		Width = readData<uint32_t>(ptr, false);
-		Height = readData<uint32_t>(ptr, false);
+		Width = readBE<uint32_t>(ptr);
+		Height = readBE<uint32_t>(ptr);
 		Bit_depth = *ptr++;
 		Color_type = *ptr++;
 		Compression_method = *ptr++;
@@ -234,26 +234,26 @@ class PNG{
 
 
 	void write_IHDR(uint8_t* & ptr){
-		writeData<uint32_t>(ptr, PNG_IHDR_SIZE, false);
+		writeValue<uint32_t>(ptr, PNG_IHDR_SIZE, false);
 		*ptr++ = 'I';
 		*ptr++ = 'H';
 		*ptr++ = 'D';
 		*ptr++ = 'R';
-		writeData<uint32_t>(ptr, Width, false);
-		writeData<uint32_t>(ptr, Height, false);
+		writeValue<uint32_t>(ptr, Width, false);
+		writeValue<uint32_t>(ptr, Height, false);
 		*ptr++ = 8;
 		*ptr++ = has_alpha ? 6 : 2;
 		*ptr++ = 0;
 		*ptr++ = 0;
 		*ptr++ = 0;
 		uint32_t crc = crc32(IHDR_crc, ptr - PNG_IHDR_SIZE, PNG_IHDR_SIZE);
-		writeData<uint32_t>(ptr, crc, false);
+		writeValue<uint32_t>(ptr, crc, false);
 		return;
 	}
 
 	void write_IDAT(uint8_t* & ptr, const std::vector<uint8_t> & deflated_stream){
 		size_t deflated_size = deflated_stream.size();
-		writeData<uint32_t>(ptr, deflated_size, false);
+		writeValue<uint32_t>(ptr, deflated_size, false);
 		*ptr++ = 'I';
 		*ptr++ = 'D';
 		*ptr++ = 'A';
@@ -261,17 +261,17 @@ class PNG{
 		std::copy(deflated_stream.begin(), deflated_stream.end(), ptr);
 		uint32_t crc = crc32_z(IDAT_crc, ptr, deflated_size);
 		ptr += deflated_size;
-		writeData<uint32_t>(ptr, crc, false);
+		writeValue<uint32_t>(ptr, crc, false);
 		return;
 	}
 
 	void write_IEND(uint8_t* & ptr){
-		writeData<uint32_t>(ptr, PNG_IEND_SIZE, false);
+		writeValue<uint32_t>(ptr, PNG_IEND_SIZE, false);
 		*ptr++ = 'I';
 		*ptr++ = 'E';
 		*ptr++ = 'N';
 		*ptr++ = 'D';
-		writeData<uint32_t>(ptr, IEND_crc, false);
+		writeValue<uint32_t>(ptr, IEND_crc, false);
 	}
 
 
