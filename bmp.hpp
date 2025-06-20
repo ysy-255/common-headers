@@ -1,8 +1,8 @@
 #ifndef BMP_HPP
 #define BMP_HPP
 
-#include "./FILE.hpp"
-#include "./IMAGE.hpp"
+#include "./file.hpp"
+#include "./image.hpp"
 
 #define BMP_MINIMUM_SIZE 54
 

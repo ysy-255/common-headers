@@ -7,8 +7,8 @@
 
 #include <zlib.h>
 
-#include "FILE.hpp"
-#include "IMAGE.hpp"
+#include "file.hpp"
+#include "image.hpp"
 
 
 #define PNG_MINIMUM_SIZE 57
