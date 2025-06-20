@@ -26,148 +26,67 @@
 */
 // コンパイル時に -lz を指定してください
 class PNG{
-	public:
+public:
+
+	enum class Err{
+		NONE, // 正常に処理されたはずです
+		INCORRECT_SIGNATURE, // シグネチャ(最初の8バイト)が定義されているものと異なります
+		UNRECOGNIZABLE, // PNGとして認識できませんでした
+		ZLIB_ERROR // ZLIB側のエラーです
+	};
 
 	PNG(){};
 
-	PNG(const uint32_t W, const uint32_t H) :
-		Width(W), Height(H), ImageData(W, H) {}
+	PNG(u32 Height, u32 Width)   : H(Height), W(Width), data(H, W) {}
+	PNG(const Image_RGB8 & img)  : H(img.H),  W(img.W), data(img),      alpha(false) {}
+	PNG(const Image_RGBA8 & img) : H(img.H),  W(img.W), data(img),      alpha(true) {}
+	PNG(const PNG & png)         : H(png.H),  W(png.W), data(png.data), alpha(png.alpha) {}
 
-	PNG(const IMAGE_RGB<uint8_t> & img) :
-		Width(img.width), Height(img.height), ImageData(img), has_alpha(false) {}
+	PNG & operator=(const PNG & other);
 
-	PNG(const IMAGE_RGBA<uint8_t> & img) :
-		Width(img.width), Height(img.height), ImageData(img), has_alpha(true) {}
+	const Image_RGBA8 & ImageData() const{ return data; }
+	std::vector<RGBA8> & operator[](const size_t h){ return data[h]; }
 
-	PNG(const PNG & png) :
-		Width(png.Width), Height(png.Height), ImageData(png.ImageData), has_alpha(png.has_alpha) {}
+	PNG(const std::string & path){ read(path); }
 
-	PNG(const std::string & path){
-		read(path);
-	}
-
-	PNG & operator=(const PNG & other){
-		if(this != &other){
-			Width = other.Width;
-			Height = other.Height;
-			ImageData = other.ImageData;
-			has_alpha = other.has_alpha;
-		}
-		return *this;
-	}
-
-
-
-	uint32_t Width;
-	uint32_t Height;
-
-	IMAGE_RGBA<uint8_t> ImageData;
-
-	bool has_alpha = false;
-
-
-	inline std::vector<RGBA<uint8_t>> & operator[](size_t h){
-		return ImageData[h];
-	}
-
-
-
-	bool read(const std::string & path){
-		PNGstream = readFile(path);
-		if(PNGstream.size() < PNG_MINIMUM_SIZE) return false;
-		const uint8_t* ptr = PNGstream.data();
-		if(!std::equal(ptr, ptr + 8, correct_signature.begin())) return false;
-		ptr += 8;
-
-		z_stream z; z.zalloc = Z_NULL; z.zfree = Z_NULL; z.opaque = Z_NULL;
-		if(inflateInit(&z) != Z_OK) return false;
-
-		std::string chunk_type(4, '\0');
-		do{
-			uint32_t length = readBE<uint32_t>(ptr);
-			std::copy(ptr, ptr + 4, chunk_type.data());
-			ptr += 4;
-
-			if(chunk_type == "IHDR"){
-				if(!read_IHDR(ptr, z)) return false;
-			}
-			else if(chunk_type == "IDAT"){
-				if(!read_IDAT(ptr, length, z)) return false;
-			}
-			else if(chunk_type == "IEND"){
-				if(ptr - PNGstream.data() < 49) return false;
-				inflateEnd(&z);
-			}
-			else if(chunk_type == "PLTE"){
-				if(!read_PLTE(ptr, length)) return false;
-			}
-			else{
-				if(ptr - PNGstream.data() < 37) return false;
-				ptr += length;
-			}
-			ptr += 4; // CRC32
-		} while(chunk_type != "IEND" && ptr + PNG_MINIMUM_CHUNK_SIZE <= &*PNGstream.end());
-
-		if(has_pallet){
-			if(!read_indexed_stream()) return false;
-		}
-		else{
-			if(!unfilterer()) return false;
-		}
-
-		return true;
-	}
-
+	Err read(const std::string & path);
 	// lelel:圧縮レベル(0~9)
-	bool write(const std::string & path, uint8_t level = 7){
-		level = std::clamp(static_cast<int>(level), 0, 9);
-		filterer();
-		auto deflated_stream = deflate_RLE(filtered_stream, level);
-		PNGstream.resize(deflated_stream.size() + PNG_MINIMUM_SIZE);
-		uint8_t* ptr = PNGstream.data();
+	void write(const std::string & path, u8 level = 7);
 
-		std::copy(correct_signature.begin(), correct_signature.end(), ptr);
-		ptr += correct_signature.size();
-
-		write_IHDR(ptr);
-		write_IDAT(ptr, deflated_stream);
-		write_IEND(ptr);
-
-		writeFile(path, PNGstream);
-
-		return true;
-	}
+	u32 H, W;
+	bool alpha = false;
 
 
+protected:
 
-	protected:
+	Image_RGBA8 data;
 
 	bool has_pallet = false;
 
-	std::vector<uint8_t> PNGstream;
-	std::vector<uint8_t> filtered_stream;
+	std::vector<u8> PNGstream;
+	std::vector<u8> filtered_stream;
 
-	std::array<RGBA<uint8_t>, 256> pallet;
-
-
-	static constexpr std::array<uint8_t, 8> correct_signature = {137, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
-	static constexpr std::array<uint8_t, 7> colorType2channel = {1, 0, 3, 1, 2, 0, 4};
-
-	static constexpr uint32_t IHDR_crc = 0xA8'A1'AE'0A;
-	static constexpr uint32_t IDAT_crc = 0x35'AF'06'1E;
-	static constexpr uint32_t IEND_crc = 0xAE'42'60'82;
+	std::array<RGBA8, 256> pallet;
 
 
-	bool read_IHDR(const uint8_t* & ptr, z_stream & z){
+	static constexpr std::array<u8, 8> correct_signature = {137, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+	static constexpr std::array<u8, 7> colorType2channel = {1, 0, 3, 1, 2, 0, 4};
+
+	static constexpr u32 IHDR_crc = 0xA8'A1'AE'0A;
+	static constexpr u32 IDAT_crc = 0x35'AF'06'1E;
+	static constexpr u32 IEND_crc = 0xAE'42'60'82;
+
+
+	bool read_IHDR(const u8* & ptr, z_stream & z){
 		if(ptr - PNGstream.data() != 16) return false;
-		uint8_t Bit_depth = 8;
-		uint8_t Color_type = 2; // 2:RGB 6:RGBA
-		uint8_t Compression_method = 0; // 0
-		uint8_t Filter_method = 0; // 0
-		uint8_t Interlace_method = 0; // 0:no 1:has
+		u8 Bit_depth = 8;
+		u8 Color_type = 2; // 2:RGB 6:RGBA
+		u8 Compression_method = 0; // 0
+		u8 Filter_method = 0; // 0
+		u8 Interlace_method = 0; // 0:no 1:has
 
-		Width = readBE<uint32_t>(ptr);
-		Height = readBE<uint32_t>(ptr);
+		W = readBE<u32>(ptr);
+		H = readBE<u32>(ptr);
 		Bit_depth = *ptr++;
 		Color_type = *ptr++;
 		Compression_method = *ptr++;
@@ -183,17 +102,17 @@ class PNG{
 		if(Bit_depth != 8) return false;
 		if(Color_type != 2 && Color_type != 3 && Color_type != 6) return false;
 
-		has_alpha = (Color_type == 4 || Color_type == 6);
+		alpha = (Color_type == 4 || Color_type == 6);
 		has_pallet = (Color_type == 3);
-		filtered_stream.resize((1 + Width * colorType2channel[Color_type]) * Height);
+		filtered_stream.resize((1 + W * colorType2channel[Color_type]) * H);
 		z.next_out = filtered_stream.data();
 		z.avail_out = filtered_stream.size();
 		return true;
 	}
 
-	bool read_IDAT(const uint8_t* & ptr, const uint32_t length, z_stream & z){
+	bool read_IDAT(const u8* & ptr, const u32 length, z_stream & z){
 		if(ptr - PNGstream.data() < 37) return false;
-		z.next_in = const_cast<uint8_t*>(ptr);
+		z.next_in = const_cast<u8*>(ptr);
 		z.avail_in = length;
 		int ret;
 		do{
@@ -204,11 +123,11 @@ class PNG{
 		return true;
 	}
 
-	bool read_PLTE(const uint8_t* & ptr, const uint32_t length){
+	bool read_PLTE(const u8* & ptr, const u32 length){
 		if(ptr - PNGstream.data() < 37) return false;
 		if(length > 256 * 3 || length % 3 > 0) return false;
-		uint16_t pallet_size = length / 3;
-		for(uint16_t i = 0; i < pallet_size; ++i){
+		u16 pallet_size = length / 3;
+		for(u16 i = 0; i < pallet_size; ++i){
 			pallet[i].R = *ptr++;
 			pallet[i].G = *ptr++;
 			pallet[i].B = *ptr++;
@@ -221,62 +140,62 @@ class PNG{
 	   範囲外の画素インデックスに対しては未定義の値が割り当てられる
 	*/
 	bool read_indexed_stream(){
-		ImageData = IMAGE_RGBA<uint8_t>(Width, Height);
-		uint8_t* ptr = filtered_stream.data();
-		for(uint32_t h = 0; h < Height; ++h){
+		data = Image_RGBA8(H, W);
+		u8* ptr = filtered_stream.data();
+		for(u32 h = 0; h < H; ++h){
 			if(*(ptr++) != 0) return false; // フィルタ方法は(0: none)のみ対応
-			for(uint32_t w = 0; w < Width; ++w){
-				(*this)[h][w] = pallet[*ptr++];
+			for(u32 w = 0; w < W; ++w){
+				data[h][w] = pallet[*ptr++];
 			}
 		}
 		return true;
 	}
 
 
-	void write_IHDR(uint8_t* & ptr){
-		writeValue<uint32_t>(ptr, PNG_IHDR_SIZE, false);
+	void write_IHDR(u8* & ptr){
+		writeValue<u32>(ptr, PNG_IHDR_SIZE, false);
 		*ptr++ = 'I';
 		*ptr++ = 'H';
 		*ptr++ = 'D';
 		*ptr++ = 'R';
-		writeValue<uint32_t>(ptr, Width, false);
-		writeValue<uint32_t>(ptr, Height, false);
+		writeValue<u32>(ptr, W, false);
+		writeValue<u32>(ptr, H, false);
 		*ptr++ = 8;
-		*ptr++ = has_alpha ? 6 : 2;
+		*ptr++ = alpha ? 6 : 2;
 		*ptr++ = 0;
 		*ptr++ = 0;
 		*ptr++ = 0;
-		uint32_t crc = crc32(IHDR_crc, ptr - PNG_IHDR_SIZE, PNG_IHDR_SIZE);
-		writeValue<uint32_t>(ptr, crc, false);
+		u32 crc = crc32(IHDR_crc, ptr - PNG_IHDR_SIZE, PNG_IHDR_SIZE);
+		writeValue<u32>(ptr, crc, false);
 		return;
 	}
 
-	void write_IDAT(uint8_t* & ptr, const std::vector<uint8_t> & deflated_stream){
+	void write_IDAT(u8* & ptr, const std::vector<u8> & deflated_stream){
 		size_t deflated_size = deflated_stream.size();
-		writeValue<uint32_t>(ptr, deflated_size, false);
+		writeValue<u32>(ptr, deflated_size, false);
 		*ptr++ = 'I';
 		*ptr++ = 'D';
 		*ptr++ = 'A';
 		*ptr++ = 'T';
 		std::copy(deflated_stream.begin(), deflated_stream.end(), ptr);
-		uint32_t crc = crc32_z(IDAT_crc, ptr, deflated_size);
+		u32 crc = crc32_z(IDAT_crc, ptr, deflated_size);
 		ptr += deflated_size;
-		writeValue<uint32_t>(ptr, crc, false);
+		writeValue<u32>(ptr, crc, false);
 		return;
 	}
 
-	void write_IEND(uint8_t* & ptr){
-		writeValue<uint32_t>(ptr, PNG_IEND_SIZE, false);
+	void write_IEND(u8* & ptr){
+		writeValue<u32>(ptr, PNG_IEND_SIZE, false);
 		*ptr++ = 'I';
 		*ptr++ = 'E';
 		*ptr++ = 'N';
 		*ptr++ = 'D';
-		writeValue<uint32_t>(ptr, IEND_crc, false);
+		writeValue<u32>(ptr, IEND_crc, false);
 	}
 
 
 	// a:left b:above c:upperleft
-	inline static uint8_t paeth_predictor(const uint8_t a, const uint8_t c, const uint8_t b){
+	inline static u8 paeth_predictor(const u8 a, const u8 c, const u8 b){
 		short pb = a, pa = b, pc;
 		pa -= c; pb -= c; pc = pa + pb;
 		pa = abs(pa); pb = abs(pb); pc = abs(pc);
@@ -286,63 +205,63 @@ class PNG{
 	}
 
 
-	void uf_None(const uint32_t h, const uint8_t* & ptr){
-		for(RGBA<uint8_t> & p : (*this)[h]){
+	void uf_None(const u32 h, const u8* & ptr){
+		for(RGBA8 & p : data[h]){
 			p.R += *ptr++;
 			p.G += *ptr++;
 			p.B += *ptr++;
-			if(!has_alpha) continue;
+			if(!alpha) continue;
 			p.A += *ptr++;
 		}
 		return;
 	}
 
-	void uf_Sub(const uint32_t h, const uint8_t* & ptr){
+	void uf_Sub(const u32 h, const u8* & ptr){
 		uf_None(h, ptr);
-		if(Width <= 1) return;
-		auto & line = (*this)[h];
+		if(W <= 1) return;
+		auto & line = data[h];
 		for(auto itr = line.begin() + 1; itr != line.end(); ++itr){
 			itr->R += (itr - 1)->R;
 			itr->G += (itr - 1)->G;
 			itr->B += (itr - 1)->B;
-			if(!has_alpha) continue;
+			if(!alpha) continue;
 			itr->A += (itr - 1)->A;
 		}
 		return;
 	}
 
-	void uf_Up(const uint32_t h, const uint8_t* & ptr){
-		if(h > 0) (*this)[h] = (*this)[h - 1];
+	void uf_Up(const u32 h, const u8* & ptr){
+		if(h > 0) data[h] = data[h - 1];
 		uf_None(h, ptr);
 		return;
 	}
 
-	void uf_Ave(const uint32_t h, const uint8_t* & ptr){
-		if(h > 0) (*this)[h] = (*this)[h - 1];
-		auto & line = (*this)[h];
+	void uf_Ave(const u32 h, const u8* & ptr){
+		if(h > 0) data[h] = data[h - 1];
+		auto & line = data[h];
 		auto itr = line.begin();
 		itr->R >>= 1; itr->G >>= 1; itr->B >>= 1;
-		if(has_alpha) itr->A >>= 1;
+		if(alpha) itr->A >>= 1;
 		itr->R += *ptr++;
 		itr->G += *ptr++;
 		itr->B += *ptr++;
-		if(has_alpha) itr->A += *ptr++;
+		if(alpha) itr->A += *ptr++;
 		while(++itr != line.end()){
 			itr->R = ((itr->R + (itr - 1)->R) >> 1) + *ptr++;
 			itr->G = ((itr->G + (itr - 1)->G) >> 1) + *ptr++;
 			itr->B = ((itr->B + (itr - 1)->B) >> 1) + *ptr++;
-			if(!has_alpha) continue;
+			if(!alpha) continue;
 			itr->A = ((itr->A + (itr - 1)->A) >> 1) + *ptr++;
 		}
 		return;
 	}
 
-	void uf_Paeth(const uint32_t h, const uint8_t* & ptr){
+	void uf_Paeth(const u32 h, const u8* & ptr){
 		if(h == 0){
 			uf_Sub(h, ptr);
 			return;
 		}
-		else if(Width <= 1){
+		else if(W <= 1){
 			uf_Up(h, ptr);
 			return;
 		}
@@ -353,112 +272,112 @@ class PNG{
 		itr->R += *ptr++;
 		itr->G += *ptr++;
 		itr->B += *ptr++;
-		if(has_alpha) itr->A += *ptr++;
+		if(alpha) itr->A += *ptr++;
 		for(++itr; ++itr != line.end();){
 			(itr - 1)->R = paeth_predictor((itr - 2)->R, (itr - 1)->R, itr->R) + *ptr++;
 			(itr - 1)->G = paeth_predictor((itr - 2)->G, (itr - 1)->G, itr->G) + *ptr++;
 			(itr - 1)->B = paeth_predictor((itr - 2)->B, (itr - 1)->B, itr->B) + *ptr++;
-			if(!has_alpha) continue;
+			if(!alpha) continue;
 			(itr - 1)->A = paeth_predictor((itr - 2)->A, (itr - 1)->A, itr->A) + *ptr++;
 		}
 		(itr - 1)->R = paeth_predictor((itr - 2)->R, (itr - 1)->R, up_line.back().R) + *ptr++;
 		(itr - 1)->G = paeth_predictor((itr - 2)->G, (itr - 1)->G, up_line.back().G) + *ptr++;
 		(itr - 1)->B = paeth_predictor((itr - 2)->B, (itr - 1)->B, up_line.back().B) + *ptr++;
-		if(!has_alpha) return;
+		if(!alpha) return;
 		(itr - 1)->A = paeth_predictor((itr - 2)->A, (itr - 1)->A, up_line.back().A) + *ptr++;
 		return;
 	}
 
-	void (PNG::*uf_funcs[5])(const uint32_t, const uint8_t* &)
+	void (PNG::*uf_funcs[5])(const u32, const u8* &)
 	 = {&PNG::uf_None, &PNG::uf_Sub, &PNG::uf_Up, &PNG::uf_Ave, &PNG::uf_Paeth};
 
 
-	bool f_None(const uint32_t h, std::vector<uint8_t> & filtered){
+	bool f_None(const u32 h, std::vector<u8> & filtered){
 		filtered[0] = 0;
-		uint8_t *filtered_ptr = &filtered[1];
-		for(const RGBA<uint8_t> & p : (*this)[h]){
+		u8 *filtered_ptr = &filtered[1];
+		for(const RGBA8 & p : data[h]){
 			*filtered_ptr++ = p.R;
 			*filtered_ptr++ = p.G;
 			*filtered_ptr++ = p.B;
-			if(!has_alpha) continue;
+			if(!alpha) continue;
 			*filtered_ptr++ = p.A;
 		}
 		return true;
 	}
 
-	bool f_Sub(const uint32_t h, std::vector<uint8_t> & filtered){
+	bool f_Sub(const u32 h, std::vector<u8> & filtered){
 		f_None(h, filtered);
 		filtered[0] = 1;
-		uint8_t *filtered_ptr = &filtered[1 + (has_alpha ? 4 : 3)];
+		u8 *filtered_ptr = &filtered[1 + (alpha ? 4 : 3)];
 		auto & line = (*this)[h];
 		for(auto ptr = line.begin(); ptr != line.end() - 1; ++ptr){
 			*filtered_ptr++ -= ptr->R;
 			*filtered_ptr++ -= ptr->G;
 			*filtered_ptr++ -= ptr->B;
-			if(!has_alpha) continue;
+			if(!alpha) continue;
 			*filtered_ptr++ -= ptr->A;
 		}
 		return true;
 	}
 
-	bool f_Up(const uint32_t h, std::vector<uint8_t> & filtered){
+	bool f_Up(const u32 h, std::vector<u8> & filtered){
 		if(h == 0) return false;
 		f_None(h, filtered);
 		filtered[0] = 2;
-		uint8_t *filtered_ptr = &filtered[1];
-		for(const RGBA<uint8_t> & p : (*this)[h - 1]){
+		u8 *filtered_ptr = &filtered[1];
+		for(const RGBA8 & p : data[h - 1]){
 			*filtered_ptr++ -= p.R;
 			*filtered_ptr++ -= p.G;
 			*filtered_ptr++ -= p.B;
-			if(!has_alpha) continue;
+			if(!alpha) continue;
 			*filtered_ptr++ -= p.A;
 		}
 		return true;
 	}
 
-	bool f_Ave(const uint32_t h, std::vector<uint8_t> & filtered){
+	bool f_Ave(const u32 h, std::vector<u8> & filtered){
 		if(h == 0) return false;
 		size_t index = 0;
 		filtered[index ++] = 3;
-		uint8_t sub_R = 0, sub_G = 0, sub_B = 0, sub_A = 0;
-		auto & line = (*this)[h], & up_line = (*this)[h - 1];
+		u8 sub_R = 0, sub_G = 0, sub_B = 0, sub_A = 0;
+		auto & line = data[h], & up_line = data[h - 1];
 		for(auto ptr = line.begin(), up_ptr = up_line.begin(); ptr != line.end(); ++ptr, ++up_ptr){
 			filtered[index ++] = ptr->R - ((sub_R + up_ptr->R) >> 1); sub_R = ptr->R;
 			filtered[index ++] = ptr->G - ((sub_G + up_ptr->G) >> 1); sub_G = ptr->G;
 			filtered[index ++] = ptr->B - ((sub_B + up_ptr->B) >> 1); sub_B = ptr->B;
-			if(has_alpha){
+			if(alpha){
 				filtered[index ++] = ptr->A - ((sub_A + up_ptr->A) >> 1); sub_A = ptr->A;
 			}
 		}
 		return true;
 	}
 
-	bool f_Paeth(const uint32_t h, std::vector<uint8_t> & filtered){
+	bool f_Paeth(const u32 h, std::vector<u8> & filtered){
 		if(h == 0) return false;
 		size_t index = 0;
 		filtered[index ++] = 4;
-		auto & line = (*this)[h], &up_line = (*this)[h - 1];
-		uint8_t sub_R = 0, sub_G = 0, sub_B = 0, sub_A = 0,
+		auto & line = data[h], &up_line = data[h - 1];
+		u8 sub_R = 0, sub_G = 0, sub_B = 0, sub_A = 0,
 		        upl_R = 0, upl_G = 0, upl_B = 0, upl_A = 0;
 		for(auto ptr = line.begin(), up_ptr = up_line.begin(); ptr != line.end(); ++ptr, ++up_ptr){
 			filtered[index ++] = ptr->R - paeth_predictor(sub_R, upl_R, up_ptr->R); sub_R = ptr->R, upl_R = up_ptr->R;
 			filtered[index ++] = ptr->G - paeth_predictor(sub_G, upl_G, up_ptr->G); sub_G = ptr->G, upl_G = up_ptr->G;
 			filtered[index ++] = ptr->B - paeth_predictor(sub_B, upl_B, up_ptr->B); sub_B = ptr->B, upl_B = up_ptr->B;
-			if(!has_alpha) continue;
+			if(!alpha) continue;
 			filtered[index ++] = ptr->A - paeth_predictor(sub_A, upl_A, up_ptr->A); sub_A = ptr->A, upl_A = up_ptr->A;
 		}
 		return true;
 	}
 
-	bool (PNG::*f_funcs[5])(const uint32_t, std::vector<uint8_t> &)
+	bool (PNG::*f_funcs[5])(const u32, std::vector<u8> &)
 	 = {&PNG::f_None, &PNG::f_Sub, &PNG::f_Up, &PNG::f_Ave, &PNG::f_Paeth};
 
 
 	bool unfilterer(){
-		ImageData = IMAGE_RGBA<uint8_t>(Width, Height);
-		uint8_t filter_type;
-		const uint8_t* ptr = filtered_stream.data();
-		for(uint32_t h = 0; h < Height; ++h){
+		data = Image_RGBA8(H, W);
+		u8 filter_type;
+		const u8* ptr = filtered_stream.data();
+		for(u32 h = 0; h < H; ++h){
 			filter_type = *ptr++;
 			if(filter_type >= 5) return false;
 			(this->*uf_funcs[filter_type])(h, ptr);
@@ -467,26 +386,26 @@ class PNG{
 	}
 
 
-	uint64_t abs_sum(const std::vector<uint8_t> & vec){
-		uint64_t res = 0;
-		for(const uint8_t i : vec) res += std::abs(static_cast<int8_t>(i));
+	u64 abs_sum(const std::vector<u8> & vec){
+		u64 res = 0;
+		for(const u8 i : vec) res += std::abs(static_cast<int8_t>(i));
 		return res;
 	}
 
 	void filterer(){
-		size_t line_size = 1 + (has_alpha ? 4 : 3) * Width;
-		filtered_stream.resize(line_size * Height);
+		size_t line_size = 1 + (alpha ? 4 : 3) * W;
+		filtered_stream.resize(line_size * H);
 		size_t index = 0;
-		std::vector<uint8_t> filtered_array[5];
+		std::vector<u8> filtered_array[5];
 		for(auto & filtered : filtered_array){
 			filtered.resize(line_size);
 		}
-		for(uint32_t h = 0; h < Height; ++h){
-			uint8_t best_filter = 0;
-			uint64_t best_score = UINT64_MAX;
-			for(uint8_t i = 0; i < 5; ++i){
+		for(u32 h = 0; h < H; ++h){
+			u8 best_filter = 0;
+			u64 best_score = UINT64_MAX;
+			for(u8 i = 0; i < 5; ++i){
 				if((this->*f_funcs[i])(h, filtered_array[i])){
-					uint64_t score = abs_sum(filtered_array[i]);
+					u64 score = abs_sum(filtered_array[i]);
 					if(score < best_score){
 						best_score = score;
 						best_filter = i;
@@ -500,9 +419,9 @@ class PNG{
 	}
 
 
-	std::vector<uint8_t> deflate_RLE(std::vector<uint8_t> & src, uint8_t level = 7){
+	std::vector<u8> deflate_RLE(std::vector<u8> & src, u8 level = 7){
 		size_t dest_size = compressBound(src.size());
-		std::vector<uint8_t> res(dest_size);
+		std::vector<u8> res(dest_size);
 		z_stream z; z.zalloc = Z_NULL; z.zfree = Z_NULL; z.opaque = Z_NULL;
 		if(deflateInit2(
 			&z,
@@ -527,6 +446,78 @@ class PNG{
 	}
 
 };
+
+PNG & PNG::operator=(const PNG & other){
+	if(this != &other){
+		H = other.H;
+		W = other.W;
+		data = other.data;
+		alpha = other.alpha;
+	}
+	return *this;
+}
+
+PNG::Err PNG::read(const std::string & path){
+	PNGstream = readFile(path);
+	if(PNGstream.size() < PNG_MINIMUM_SIZE) return Err::UNRECOGNIZABLE;
+	const u8* ptr = PNGstream.data();
+	if(!std::equal(ptr, ptr + 8, correct_signature.begin())) return Err::INCORRECT_SIGNATURE;
+	ptr += 8;
+
+	z_stream z; z.zalloc = Z_NULL; z.zfree = Z_NULL; z.opaque = Z_NULL;
+	if(inflateInit(&z) != Z_OK) return Err::ZLIB_ERROR;
+
+	std::string chunk_type(4, '\0');
+	do{
+		u32 length = readBE<u32>(ptr);
+		std::copy(ptr, ptr + 4, chunk_type.data());
+		ptr += 4;
+
+		if(chunk_type == "IHDR"){
+			if(!read_IHDR(ptr, z)) return Err::UNRECOGNIZABLE;
+		}
+		else if(chunk_type == "IDAT"){
+			if(!read_IDAT(ptr, length, z)) return Err::UNRECOGNIZABLE;
+		}
+		else if(chunk_type == "IEND"){
+			if(ptr - PNGstream.data() < 49) return Err::UNRECOGNIZABLE;
+			inflateEnd(&z);
+		}
+		else if(chunk_type == "PLTE"){
+			if(!read_PLTE(ptr, length)) return Err::UNRECOGNIZABLE;
+		}
+		else{
+			if(ptr - PNGstream.data() < 37) return Err::UNRECOGNIZABLE;
+			ptr += length;
+		}
+		ptr += 4; // CRC32
+	} while(chunk_type != "IEND" && ptr + PNG_MINIMUM_CHUNK_SIZE <= &*PNGstream.end());
+
+	if(has_pallet){
+		if(!read_indexed_stream()) return Err::UNRECOGNIZABLE;
+	}
+	else{
+		if(!unfilterer()) return Err::UNRECOGNIZABLE;
+	}
+
+	return Err::NONE;
+}
+
+void PNG::write(const std::string & path, u8 level){
+	level = std::clamp(static_cast<int>(level), 0, 9);
+	filterer();
+	auto deflated_stream = deflate_RLE(filtered_stream, level);
+	PNGstream.resize(deflated_stream.size() + PNG_MINIMUM_SIZE);
+	u8* ptr = PNGstream.data();
+
+	std::copy(correct_signature.begin(), correct_signature.end(), ptr);
+	ptr += correct_signature.size();
+
+	write_IHDR(ptr);
+	write_IDAT(ptr, deflated_stream);
+	write_IEND(ptr);
+	writeFile(path, PNGstream);
+}
 
 #endif
 
