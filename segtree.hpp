@@ -1,9 +1,9 @@
-#include <cstdint>
 #include <vector>
 #include <algorithm>
 
+#include "int.hpp"
 
-uint8_t bit_ceil_exp(uint64_t n){
+u8 bit_ceil_exp(u64 n){
 	if(n == 0) return 0;
 	return (((n & (n - 1)) == 0 ? 63 : 64) - __builtin_clzll(n));
 }
@@ -20,8 +20,8 @@ class SegTree{
 		return res;
 	}
 
-	uint32_t lg;
-	uint64_t sz;
+	u32 lg;
+	size_t sz;
 	std::vector<T> dt;
 
 	SegTree() = delete;
@@ -30,7 +30,7 @@ class SegTree{
 
 
 	public:
-	SegTree(const uint64_t _sz, const T init = e){
+	SegTree(const size_t _sz, const T init = e){
 		if(_sz == 0) return;
 		lg = bit_ceil_exp(_sz);
 		sz = 1ULL << lg;
@@ -48,7 +48,7 @@ class SegTree{
 		update_all();
 	}
 
-	void set(uint64_t dst, const T value){
+	void set(size_t dst, const T value){
 		dst += sz;
 		dt[dst] = value;
 		while((dst >>= 1) > 0){
@@ -56,12 +56,12 @@ class SegTree{
 		}
 	}
 
-	T at(uint64_t ofs) const{
+	T at(size_t ofs) const{
 		return dt[sz + ofs];
 	}
 
 	// [l, r]
-	T range0(uint64_t l, uint64_t r) const{
+	T range0(size_t l, size_t r) const{
 		l += sz; r += sz;
 		T resl = e, resr = e;
 		while(l <= r){
@@ -74,7 +74,7 @@ class SegTree{
 	}
 
 	// [l, r)
-	T range1(uint64_t l, uint64_t r) const{
+	T range1(size_t l, size_t r) const{
 		l += sz; r += sz;
 		T resl = e, resr = e;
 		while(l < r){
@@ -86,7 +86,7 @@ class SegTree{
 		return op(resl, resr);
 	}
 
-	uint64_t lower_find(const T val, uint64_t l = 0) const{
+	size_t lower_find(const T val, size_t l = 0) const{
 		T cur = e, next;
 		if(dt[sz + l] >= val) return l;
 		l += sz;
@@ -115,7 +115,7 @@ class SegTree{
 
 	private:
 	void update_all(){
-		uint64_t dst = sz;
+		size_t dst = sz;
 		while(--dst > 0){
 			dt[dst] = op(dt[dst + dst], dt[dst + dst + 1]);
 		}

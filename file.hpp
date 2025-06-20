@@ -1,13 +1,13 @@
 #ifndef FILE_HPP
 #define FILE_HPP
 
-#include <cstdint>
-
 #include <fstream>
 #include <filesystem>
+#include <algorithm>
 #include <string>
 #include <vector>
-#include <algorithm>
+
+#include "int.hpp"
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	inline constexpr bool SYSTEM_LITTLE_ENDIAN = true;
@@ -15,18 +15,18 @@
 	inline constexpr bool SYSTEM_LITTLE_ENDIAN = false;
 #endif
 
-inline std::vector<uint8_t> readFile(const std::string & path){
+inline std::vector<u8> readFile(const std::string & path){
 	std::ifstream file_ifstream(path, std::ios::binary | std::ios::ate);
 	if(!file_ifstream.is_open()) return {};
 	size_t file_size = file_ifstream.tellg();
 	file_ifstream.seekg(0);
-	std::vector<uint8_t> result(file_size);
+	std::vector<u8> result(file_size);
 	file_ifstream.read(reinterpret_cast<char*>(result.data()), file_size);
 	file_ifstream.close();
 	return result;
 }
 
-inline void writeFile(const std::string & path, const std::vector<uint8_t> & stream){
+inline void writeFile(const std::string & path, const std::vector<u8> & stream){
 	std::ofstream out(path, std::ios::binary);
 	out.write(reinterpret_cast<const char*>(stream.data()), stream.size());
 	out.close();
@@ -45,88 +45,97 @@ inline std::vector<std::string> getFileList(const std::string & folder_path){
 	return result;
 }
 
-template<typename T, typename Iter>
-inline T readValue(Iter & itr, const bool is_little_endian){
+template<typename T, typename II>
+inline T readValue(II & itr, const bool is_little_endian){
 	T res;
+	II last = itr + sizeof(T);
 	if(is_little_endian == SYSTEM_LITTLE_ENDIAN){
-		std::copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+		std::copy(itr, last, reinterpret_cast<u8*>(&res));
 	}
 	else{
-		std::reverse_copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+		std::reverse_copy(itr, last, reinterpret_cast<u8*>(&res));
 	}
-	itr += sizeof(T);
+	itr = last;
 	return res;
 }
-template<typename T, typename Iter>
-inline T readBE(Iter & itr){
+template<typename T, typename II>
+inline T readBE(II & itr){
 	T res;
+	II last = itr + sizeof(T);
 	if constexpr (SYSTEM_LITTLE_ENDIAN){
-		std::reverse_copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+		std::reverse_copy(itr, last, reinterpret_cast<u8*>(&res));
 	}
 	else{
-		std::copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+		std::copy(itr, last, reinterpret_cast<u8*>(&res));
 	}
-	itr += sizeof(T);
+	itr = last;
 	return res;
 }
-template<typename T, typename Iter>
-inline T readLE(Iter & itr){
+template<typename T, typename II>
+inline T readLE(II & itr){
 	T res;
+	II last = itr + sizeof(T);
 	if constexpr (SYSTEM_LITTLE_ENDIAN){
-		std::copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+		std::copy(itr, last, reinterpret_cast<u8*>(&res));
 	}
 	else{
-		std::reverse_copy(itr, itr + sizeof(T), reinterpret_cast<uint8_t*>(&res));
+		std::reverse_copy(itr, last, reinterpret_cast<u8*>(&res));
 	}
-	itr += sizeof(T);
+	itr = last;
 	return res;
 }
 
-template<typename T, typename Iter>
-inline void writeValue(Iter & itr, const T value, const bool is_little_endian){
-	const uint8_t* src = reinterpret_cast<const uint8_t*>(&value);
+template<typename T, typename OI>
+inline void writeValue(OI & itr, const T value, const bool is_little_endian){
+	const u8* src = reinterpret_cast<const u8*>(&value);
 	if(is_little_endian == SYSTEM_LITTLE_ENDIAN){
-		std::copy(src, src + sizeof(T), itr);
+		itr = std::copy(src, src + sizeof(T), itr);
 	}
 	else{
-		std::reverse_copy(src, src + sizeof(T), itr);
+		itr = std::reverse_copy(src, src + sizeof(T), itr);
 	}
-	itr += sizeof(T);
 }
-template<typename T, typename Iter>
-inline void writeBE(Iter & itr, const T value){
-	const uint8_t* src = reinterpret_cast<const uint8_t*>(&value);
+template<typename T, typename OI>
+inline void writeBE(OI & itr, const T value){
+	const u8* src = reinterpret_cast<const u8*>(&value);
 	if constexpr (SYSTEM_LITTLE_ENDIAN){
-		std::reverse_copy(src, src + sizeof(T), itr);
+		itr = std::reverse_copy(src, src + sizeof(T), itr);
 	}
 	else{
-		std::copy(src, src + sizeof(T), itr);
+		itr = std::copy(src, src + sizeof(T), itr);
 	}
-	itr += sizeof(T);
 }
-template<typename T, typename Iter>
-inline void writeLE(Iter & itr, const T value){
-	const uint8_t* src = reinterpret_cast<const uint8_t*>(&value);
+template<typename T, typename OI>
+inline void writeLE(OI & itr, const T value){
+	const u8* src = reinterpret_cast<const u8*>(&value);
 	if constexpr (SYSTEM_LITTLE_ENDIAN){
-		std::copy(src, src + sizeof(T), itr);
+		itr = std::copy(src, src + sizeof(T), itr);
 	}
 	else{
-		std::reverse_copy(src, src + sizeof(T), itr);
+		itr = std::reverse_copy(src, src + sizeof(T), itr);
 	}
-	itr += sizeof(T);
 }
 
-template<typename Iter>
-inline std::string readString(Iter & itr, const size_t size){
+template<typename II>
+inline std::string readString(II & itr, const size_t size){
 	std::string res(itr, itr + size);
 	itr += size;
 	return res;
 }
-template<typename Iter>
-inline std::vector<uint8_t> readStream(Iter & itr, const size_t size){
-	std::vector res(itr, itr + size);
+template<typename II>
+inline std::vector<u8> readBytes(II & itr, const size_t size){
+	std::vector<u8> res(itr, itr + size);
 	itr += size;
 	return res;
+}
+
+template<typename OI>
+inline void writeString(OI & itr, const std::string & str){
+	itr = std::copy(str.begin(), str.end(), itr);
+}
+template<typename OI>
+inline void writeBytes(OI & itr, const std::vector<u8> & bytes){
+	itr = std::copy(bytes.begin(), bytes.end(), itr);
 }
 
 #endif

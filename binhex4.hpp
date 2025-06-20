@@ -1,17 +1,20 @@
+#ifndef BINHEX4_HPP
+#define BINHEX4_HPP
+
 #include <iostream>
 
-#include "FILE.hpp"
+#include "file.hpp"
 
-namespace binhex4{
+namespace BinHex4{
 
-	std::vector<uint8_t> read(const std::string & path);
+	std::vector<u8> read(const std::string & path);
 
 	std::string last_FileName;
-	uint8_t last_Version;
+	u8 last_Version;
 	std::string last_Type;
 	std::string last_Creator;
-	uint16_t last_Flags;
-	std::vector<uint8_t> last_Resource;
+	u16 last_Flags;
+	std::vector<u8> last_Resource;
 
 	enum class Err;
 	enum Err last_error;
@@ -28,7 +31,7 @@ namespace binhex4{
 	namespace detail{
 		#define XX 0xFF
 		/* !"#$%&'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr */
-		const uint8_t table[] = {
+		const u8 table[] = {
 			  XX,0x00,0x01,0x02, 0x03,0x04,0x05,0x06, 0x07,0x08,0x09,0x0A, 0x0B,0x0C,  XX,  XX,
 			0x0D,0x0E,0x0F,0x10, 0x11,0x12,0x13,  XX, 0x14,0x15,  XX,  XX,   XX,  XX,  XX,  XX,
 			0x16,0x17,0x18,0x19, 0x1A,0x1B,0x1C,0x1D, 0x1E,0x1F,0x20,0x21, 0x22,0x23,0x24,  XX,
@@ -39,11 +42,11 @@ namespace binhex4{
 		#undef XX
 
 		const std::string correct_comment = "(This file must be converted with BinHex 4.0)";
-		const uint8_t comment_size = correct_comment.size();
+		const u8 comment_size = correct_comment.size();
 
 		enum Err trimLR(
-			std::vector<uint8_t>::const_iterator & l,
-			std::vector<uint8_t>::const_iterator & r
+			std::vector<u8>::const_iterator & l,
+			std::vector<u8>::const_iterator & r
 		){
 			l = std::find(l, r, '(');
 			if(l + comment_size > r) return Err::UNRECOGNIZABLE;
@@ -58,13 +61,14 @@ namespace binhex4{
 		}
 
 		enum Err decode(
-			std::vector<uint8_t>::const_iterator & l,
-			std::vector<uint8_t>::const_iterator & r,
-			std::vector<uint8_t> & dst
+			std::vector<u8>::const_iterator & l,
+			std::vector<u8>::const_iterator & r,
+			std::vector<u8> & dst
 		){
 			bool mode90 = false;
-			for(uint8_t cnt = 0; l != r; l++){
-				uint8_t ch = *l;
+			u8 cnt = 0;
+			while(l != r){
+				u8 ch = *l++;
 				ch -= 0x20;
 				if(ch >= 0x60) continue;
 				ch = table[ch];
@@ -72,12 +76,12 @@ namespace binhex4{
 				if(cnt > 0){
 					dst.back() |= ch >> (6 - cnt);
 					if(mode90){
-						uint8_t times = dst.back();
+						u8 times = dst.back();
 						dst.pop_back(); // times
 						if(times != 0){
 							times --;
 							dst.pop_back(); // 0x90
-							uint8_t ch = dst.back();
+							u8 ch = dst.back();
 							dst.resize(dst.size() + times, ch);
 						}
 						mode90 = false;
@@ -95,43 +99,43 @@ namespace binhex4{
 			return Err::NONE;
 		}
 
-		enum Err extract(const std::vector<uint8_t> & src, std::vector<uint8_t> & dst){
+		enum Err extract(const std::vector<u8> & src, std::vector<u8> & dst){
 			auto itr = src.begin(), end = src.end();
 			if(itr + 26 >= end) return Err::FAULTY_DATA;
-			uint8_t FileName_len = *itr++;
+			u8 FileName_len = *itr++;
 			if(itr + FileName_len + 25 >= end) return Err::FAULTY_DATA;
 			last_FileName = readString(itr, FileName_len);
 			last_Version = *itr++;
 			last_Type = readString(itr, 4);
 			last_Creator = readString(itr, 4);
-			last_Flags = readBE<uint16_t>(itr);
-			uint32_t Data_len = readBE<uint32_t>(itr);
-			uint32_t Rsrc_len = readBE<uint32_t>(itr);
-			uint16_t crc1 = readBE<uint16_t>(itr);
+			last_Flags = readBE<u16>(itr);
+			u32 Data_len = readBE<u32>(itr);
+			u32 Rsrc_len = readBE<u32>(itr);
+			u16 crc1 = readBE<u16>(itr);
 			if(itr + Data_len > end) return Err::FAULTY_DATA;
-			dst = readStream(itr, Data_len);
+			dst = readBytes(itr, Data_len);
 			if(itr + 2 > end) return Err::FAULTY_DATA;
-			uint16_t crc2 = readBE<uint16_t>(itr);
+			u16 crc2 = readBE<u16>(itr);
 			if(itr + Rsrc_len > end) return Err::FAULTY_DATA;
-			last_Resource = readStream(itr, Rsrc_len);
+			last_Resource = readBytes(itr, Rsrc_len);
 			if(itr + 2 > end) return Err::FAULTY_DATA;
-			uint16_t crc3 = readBE<uint16_t>(itr);
+			u16 crc3 = readBE<u16>(itr);
 			return Err::NONE;
 		}
 	}
 
-	std::vector<uint8_t> read(const std::string & path){
+	std::vector<u8> read(const std::string & path){
 		using namespace detail;
 
 		const auto raw = readFile(path);
 		auto l = raw.begin(), r = raw.end();
 		if((last_error = trimLR(l, r)) != Err::NONE) return {};
 
-		std::vector<uint8_t> stream;
+		std::vector<u8> stream;
 		stream.reserve(r - l);
 		if((last_error = decode(l, r, stream)) != Err::NONE) return {};
 
-		std::vector<uint8_t> res;
+		std::vector<u8> res;
 		if((last_error = extract(stream, res)) != Err::NONE) return {};
 
 		return res;
@@ -153,3 +157,5 @@ namespace binhex4{
 	[Length of Resource] Resource;
 	[2] CRC;
 */
+
+#endif

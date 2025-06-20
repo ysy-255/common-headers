@@ -10,148 +10,159 @@
 #define BMP_INFOHEADER_SIZE 40
 
 class BMP{
-	public:
+public:
 
-	BMP(){};
+	enum class Err{
+		NONE, // 正常に処理されたはずです
+		UNKNOWN_TYPE, // ファイルが BM から始まりません
+		UNRECOGNIZABLE, // BMPファイルとして認識できません
+		UNSUPPORTED_INFOHEADER, // サポートしていないINFOHEADERです
+		UNSUPPORTED_BitCount, // サポートしていないビット数です
+		UNSUPPORTED_Compression, // サポートしていない圧縮形式です
+		UNSUPPORTED // その他のサポートしていない要素があります
+	};
 
-	BMP(const uint32_t W, const uint32_t H) :
-		Width(W), Height(H), ImageData(W, H) {}
+	BMP() = default;
+	BMP(u32 Height, u32 Width)   : H(Height), W(Width), data(H, W)     {}
+	BMP(const Image_RGB8 & img)  : H(img.H),  W(img.W), data(img)      {}
+	BMP(const Image_RGBA8 & img) : H(img.H),  W(img.W), data(img)      {}
+	BMP(const BMP & bmp)         : H(bmp.H),  W(bmp.W), data(bmp.data) {}
 
-	BMP(const IMAGE_RGB<uint8_t> & img) :
-		Width(img.width), Height(img.height), ImageData(img) {}
+	BMP & operator=(const BMP & other);
 
-	BMP(const IMAGE_RGBA<uint8_t> & img) :
-		Width(img.width), Height(img.height), ImageData(img) {}
+	const Image_RGB8 & ImageData() const{ return data; }
+	std::vector<RGB8> & operator[](u32 h){ return data[h]; }
 
-	BMP(const BMP & bmp) :
-		Width(bmp.Width), Height(bmp.Height), ImageData(bmp.ImageData) {}
+	BMP(const std::string & path){ read(path); }
 
-	BMP(const std::string & path){
-		read(path);
-	}
+	Err read(const std::string & path);
+	void write(const std::string & path);
 
-	uint32_t Width;
-	uint32_t Height;
-
-	IMAGE_RGB<uint8_t> ImageData;
-
-	inline std::vector<RGB<uint8_t>> & operator[](size_t h){
-		return ImageData[h];
-	}
-
-	bool read(const std::string & path){
-		BMPstream = readFile(path);
-		if(BMPstream.size() < BMP_MINIMUM_SIZE) return false;
-		const uint8_t* ptr = BMPstream.data();
-		if(!read_FILEHEADER(ptr)) return false;
-		if(!read_INFOHEADER(ptr)) return false;
-		if(!read_BITMAP(ptr)) return false;
-		return true;
-	}
-
-	bool write(const std::string & path){
-		BMPstream.resize((Width * 3 + (Width & 0b11)) * Height + BMP_MINIMUM_SIZE);
-		uint8_t* ptr = BMPstream.data();
-		write_FILEHEADER(ptr);
-		write_INFOHEADER(ptr);
-		write_BITMAP(ptr);
-
-		writeFile(path, BMPstream);
-		return true;
-	}
-
-	protected:
+	u32 H, W;
 
 
-	std::vector<uint8_t> BMPstream;
+protected:
 
-	static constexpr std::array<uint8_t, 2> correct_bfType = {'B', 'M'};
+	Image_RGB8 data;
 
-	bool read_FILEHEADER(const uint8_t* & ptr){
-		if(!std::equal(ptr, ptr + 2, correct_bfType.data())) return false;
-		ptr += 2;
+	std::vector<u8> BMPstream;
 
-		uint32_t bfSize = readLE<uint32_t>(ptr);
-		uint16_t bfReserved1 = readLE<uint16_t>(ptr);
-		uint16_t bfReserved2 = readLE<uint16_t>(ptr);
-		uint32_t bfOffBits = readLE<uint32_t>(ptr);
-		return true;
-	}
+	Err read_FILEHEADER(std::vector<u8>::const_iterator &);
+	Err read_INFOHEADER(std::vector<u8>::const_iterator &);
+	Err read_BITMAP(std::vector<u8>::const_iterator &);
 
-	bool read_INFOHEADER(const uint8_t* & ptr){
-		uint32_t biSize = readLE<uint32_t>(ptr);
-		if(biSize != BMP_INFOHEADER_SIZE) return false;
-		Width = readLE<uint32_t>(ptr);
-		Height = readLE<uint32_t>(ptr);
-		uint16_t biPlanes = readLE<uint16_t>(ptr);
-		uint16_t biBitCount = readLE<uint16_t>(ptr);
-		uint32_t biCompression = readLE<uint32_t>(ptr);
-		uint32_t biSizeImage = readLE<uint32_t>(ptr);
-		uint32_t biXPelsPerMeter = readLE<uint32_t>(ptr);
-		uint32_t biYPelsPerMeter = readLE<uint32_t>(ptr);
-		uint32_t biClrUsed = readLE<uint32_t>(ptr);
-		uint32_t biClrImportant = readLE<uint32_t>(ptr);
-
-		if(biPlanes != 1) return false;
-		if(biBitCount != 24) return false;
-		if(biCompression != 0) return false;
-		if(biClrUsed != 0) return false;
-		return true;
-	}
-
-	bool read_BITMAP(const uint8_t* & ptr){
-		ImageData = IMAGE_RGB<uint8_t>(Width, Height);
-		uint8_t rest = Width & 0b11;
-		for(uint32_t h = Height; h-- > 0;){
-			for(uint32_t w = 0; w < Width; ++w){
-				(*this)[h][w].B = *ptr++;
-				(*this)[h][w].G = *ptr++;
-				(*this)[h][w].R = *ptr++;
-			}
-			ptr += rest;
-		}
-		return true;
-	}
-
-
-	void write_FILEHEADER(uint8_t* & ptr){
-		std::copy(correct_bfType.begin(), correct_bfType.end(), ptr);
-		ptr += correct_bfType.size();
-		writeLE<uint32_t>(ptr, BMPstream.size());
-		writeLE<uint16_t>(ptr, 0);
-		writeLE<uint16_t>(ptr, 0);
-		writeLE<uint32_t>(ptr, BMP_MINIMUM_SIZE);
-		return;
-	}
-
-	void write_INFOHEADER(uint8_t* & ptr){
-		writeLE<uint32_t>(ptr, BMP_INFOHEADER_SIZE);
-		writeLE<uint32_t>(ptr, Width);
-		writeLE<uint32_t>(ptr, Height);
-		writeLE<uint16_t>(ptr, 1);
-		writeLE<uint16_t>(ptr, 24);
-		writeLE<uint32_t>(ptr, 0);
-		writeLE<uint32_t>(ptr, 0);
-		writeLE<uint32_t>(ptr, 0);
-		writeLE<uint32_t>(ptr, 0);
-		writeLE<uint32_t>(ptr, 0);
-		writeLE<uint32_t>(ptr, 0);
-		return;
-	}
-
-	void write_BITMAP(uint8_t* & ptr){
-		uint8_t rest = Width & 0b11;
-		for(uint32_t h = Height; h-- > 0;){
-			for(uint32_t w = 0; w < Width; ++w){
-				*ptr++ = (*this)[h][w].B;
-				*ptr++ = (*this)[h][w].G;
-				*ptr++ = (*this)[h][w].R;
-			}
-			for(uint32_t rest_temp = rest; rest_temp-- > 0;) *ptr++ = 0;
-		}
-		return;
-	}
+	void write_FILEHEADER(std::vector<u8>::iterator &);
+	void write_INFOHEADER(std::vector<u8>::iterator &);
+	void write_BITMAP(std::vector<u8>::iterator &);
 
 };
+
+BMP & BMP::operator=(const BMP & other){
+	if(this != &other){
+		H = other.H;
+		W = other.W;
+		data = other.data;
+	}
+	return *this;
+}
+
+BMP::Err BMP::read(const std::string & path){
+	BMPstream = readFile(path);
+	if(BMPstream.size() < BMP_MINIMUM_SIZE) return Err::UNRECOGNIZABLE;
+	std::vector<u8>::const_iterator itr = BMPstream.begin();
+	Err e = Err::NONE;
+	if((e = read_FILEHEADER(itr)) != Err::NONE) return e;
+	if((e = read_INFOHEADER(itr)) != Err::NONE) return e;
+	if((e = read_BITMAP(itr)) != Err::NONE) return e;
+	return e;
+}
+
+BMP::Err BMP::read_FILEHEADER(std::vector<u8>::const_iterator & itr){
+	if(std::string(itr, itr + 2) != "BM") return Err::UNKNOWN_TYPE;
+	itr += 2;
+	u32 bfSize = readLE<u32>(itr);
+	[[maybe_unused]] u16 bfReserved1 = readLE<u16>(itr);
+	[[maybe_unused]] u16 bfReserved2 = readLE<u16>(itr);
+	u32 bfOffBits = readLE<u32>(itr);
+	return Err::NONE;
+}
+
+BMP::Err BMP::read_INFOHEADER(std::vector<u8>::const_iterator & itr){
+	u32 biSize = readLE<u32>(itr);
+	if(biSize != BMP_INFOHEADER_SIZE) return Err::UNSUPPORTED_INFOHEADER;
+	W = readLE<u32>(itr);
+	H = readLE<u32>(itr);
+	u16 biPlanes = readLE<u16>(itr);
+	u16 biBitCount = readLE<u16>(itr);
+	u32 biCompression = readLE<u32>(itr);
+	u32 biSizeImage = readLE<u32>(itr);
+	u32 biXPelsPerMeter = readLE<u32>(itr);
+	u32 biYPelsPerMeter = readLE<u32>(itr);
+	u32 biClrUsed = readLE<u32>(itr);
+	u32 biClrImportant = readLE<u32>(itr);
+	if(biPlanes != 1) return Err::UNSUPPORTED;
+	if(biBitCount != 24) return Err::UNSUPPORTED_BitCount;
+	if(biCompression != 0) return Err::UNSUPPORTED_Compression;
+	if(biClrUsed != 0) return Err::UNSUPPORTED;
+	return Err::NONE;
+}
+
+BMP::Err BMP::read_BITMAP(std::vector<u8>::const_iterator & itr){
+	data = Image_RGB8(H, W);
+	u8 rest = W & 0b11;
+	if((W * 3 + rest) * H > BMPstream.end() - itr) return Err::UNRECOGNIZABLE;
+	for(u32 h = H; h-- > 0;){
+		for(u32 w = 0; w < W; ++w){
+			data[h][w].B = *itr++;
+			data[h][w].G = *itr++;
+			data[h][w].R = *itr++;
+		}
+		itr += rest;
+	}
+	return Err::NONE;
+}
+
+void BMP::write(const std::string & path){
+	BMPstream.resize((W * 3 + (W & 0b11)) * H + BMP_MINIMUM_SIZE);
+	std::vector<u8>::iterator itr = BMPstream.begin();
+	write_FILEHEADER(itr);
+	write_INFOHEADER(itr);
+	write_BITMAP(itr);
+	writeFile(path, BMPstream);
+}
+
+void BMP::write_FILEHEADER(std::vector<u8>::iterator & itr){
+	writeString(itr, "BM");
+	writeLE<u32>(itr, BMPstream.size());
+	writeLE<u16>(itr, 0);
+	writeLE<u16>(itr, 0);
+	writeLE<u32>(itr, BMP_MINIMUM_SIZE);
+}
+
+void BMP::write_INFOHEADER(std::vector<u8>::iterator & itr){
+	writeLE<u32>(itr, BMP_INFOHEADER_SIZE);
+	writeLE<u32>(itr, W);
+	writeLE<u32>(itr, H);
+	writeLE<u16>(itr, 1);
+	writeLE<u16>(itr, 24);
+	writeLE<u32>(itr, 0);
+	writeLE<u32>(itr, 0);
+	writeLE<u32>(itr, 0);
+	writeLE<u32>(itr, 0);
+	writeLE<u32>(itr, 0);
+	writeLE<u32>(itr, 0);
+}
+
+void BMP::write_BITMAP(std::vector<u8>::iterator & itr){
+	u8 rest = W & 0b11;
+	for(u32 h = H; h-- > 0;){
+		for(u32 w = 0; w < W; ++w){
+			*itr++ = data[h][w].B;
+			*itr++ = data[h][w].G;
+			*itr++ = data[h][w].R;
+		}
+		itr = std::fill_n(itr, rest, 0);
+	}
+}
 
 #endif
