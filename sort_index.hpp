@@ -1,3 +1,6 @@
+#ifndef SORT_INDEX_HPP
+#define SORT_INDEX_HPP
+
 #include <algorithm>
 #include <vector>
 
@@ -41,3 +44,5 @@ std::vector<T> sort_follow(const std::vector<T> & vec, const std::vector<size_t>
 	}
 	return res;
 }
+
+#endif
