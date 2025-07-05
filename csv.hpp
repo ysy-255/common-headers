@@ -1,3 +1,5 @@
+// ひどい有様なのであまり使わないようにすること
+
 #include "file.hpp"
 
 class CSV{
