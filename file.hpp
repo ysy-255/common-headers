@@ -39,7 +39,7 @@ inline std::vector<std::string> getFileList(const std::string & folder_path){
 	auto folder_files = std::filesystem::directory_iterator(folder_path);
 	for(auto & f : folder_files){
 		if(f.is_regular_file()){
-			result.push_back(f.path().string());
+			result.push_back(f.path().filename().string());
 		}
 	}
 	return result;
