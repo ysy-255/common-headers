@@ -4,8 +4,8 @@
 #include "int.hpp"
 
 u8 bit_ceil_exp(u64 n){
-	if(n == 0) return 0;
-	return (((n & (n - 1)) == 0 ? 63 : 64) - __builtin_clzll(n));
+	if(n <= 1) return 0;
+	return 64 - __builtin_clzll(n - 1);
 }
 
 // e: 単位元
@@ -14,26 +14,20 @@ class SegTree{
 	private:
 	inline T op(const T a, const T b) const{
 		T res;
-		/* -- ここを書き換える -- */
+
+		// ここを書き換える
 		res = a + b;
 
 		return res;
 	}
 
-	u32 lg;
 	size_t sz;
 	std::vector<T> dt;
-
-	SegTree() = delete;
-	SegTree(const SegTree &) = delete;
-	SegTree & operator=(const SegTree &) = delete;
-
 
 	public:
 	SegTree(const size_t _sz, const T init = e){
 		if(_sz == 0) return;
-		lg = bit_ceil_exp(_sz);
-		sz = 1ULL << lg;
+		sz = 1ULL << bit_ceil_exp(_sz);
 		dt.reserve(sz + sz);
 		dt.resize(sz);
 		dt.resize(sz + sz, init);
@@ -41,8 +35,9 @@ class SegTree{
 	}
 	SegTree(const std::vector<T> & vec, const T init = e){
 		if(vec.empty()) return;
-		lg = bit_ceil_exp(vec.size());
-		sz = 1ULL << lg;
+		sz = 1ULL << bit_ceil_exp(vec.size());
+		dt.reserve(sz + sz);
+		dt.resize(sz);
 		dt.resize(sz + sz, init);
 		std::copy(vec.begin(), vec.end(), dt.begin() + sz);
 		update_all();
