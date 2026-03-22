@@ -15,6 +15,8 @@ struct RGB8{
 	u8 G = 0;
 	u8 B = 0;
 	RGB8& operator=(const RGBA8 & other);
+	RGB8() {}
+	RGB8(u8 r, u8 g, u8 b) : R(r), G(g), B(b) {}
 };
 
 struct RGBA8{
@@ -23,6 +25,8 @@ struct RGBA8{
 	u8 B = 0;
 	u8 A = U8MAX;
 	RGBA8& operator=(const RGB8 & other);
+	RGBA8() {}
+	RGBA8(u8 r, u8 g, u8 b, u8 a) : R(r), G(g), B(b), A(a) {}
 };
 
 RGB8& RGB8::operator=(const RGBA8 & other){
@@ -53,6 +57,7 @@ public:
 	Image_RGB8 & operator=(const Image_RGBA8 & other);
 
 	std::vector<RGB8> & operator[](const size_t h){ return data[h]; }
+	const std::vector<RGB8> & operator[](const size_t h) const{ return data[h]; }
 
 
 protected:
@@ -72,6 +77,7 @@ public:
 	Image_RGBA8 & operator=(const Image_RGB8 & other);
 
 	std::vector<RGBA8> & operator[](size_t h){ return data[h]; }
+	const std::vector<RGBA8> & operator[] (size_t h) const{ return data[h]; }
 
 
 protected:
