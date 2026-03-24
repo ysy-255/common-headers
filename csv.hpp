@@ -1,3 +1,6 @@
+#ifndef CSV_HPP
+#define CSV_HPP
+
 #include "file.hpp"
 
 class CSV{
@@ -209,3 +212,5 @@ private:
 	}
 
 };
+
+#endif
