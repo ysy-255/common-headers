@@ -9,7 +9,7 @@ namespace SA{
 	const f64 temp_log_start = 5, temp_log_end = -5;
 	f64 temp = 0;
 	const u32 attemps_cnt_in_1misec = 1000;
-	void core(){
+	void core() {
 		/*
 		u32 r1 = Rand::value(L1),
 			r2 = Rand::value(L2),
@@ -22,11 +22,11 @@ namespace SA{
 		}
 		*/
 	}
-	void main(u32 time_limit = 1900){
+	void main (u32 time_limit = 1900) {
 		u32 timer_mili;
-		while((timer_mili = Timer::milli()) < time_limit){
+		while ((timer_mili = Timer::milli()) < time_limit) {
 			temp = std::exp(temp_log_start + (temp_log_end - temp_log_start) * timer_mili / time_limit);
-			for(u32 cnt = 0; cnt < attemps_cnt_in_1misec; ++cnt){
+			for (u32 cnt = 0; cnt < attemps_cnt_in_1misec; ++cnt) {
 				core();
 			}
 		}

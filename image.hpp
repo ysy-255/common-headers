@@ -5,6 +5,8 @@
 
 #include "int.hpp"
 
+using std::vector;
+
 struct RGB8;
 struct RGBA8;
 class Image_RGB8;
@@ -14,7 +16,7 @@ struct RGB8{
 	u8 R = 0;
 	u8 G = 0;
 	u8 B = 0;
-	RGB8& operator=(const RGBA8 & other);
+	RGB8& operator= (const RGBA8& other);
 	RGB8() {}
 	RGB8(u8 r, u8 g, u8 b) : R(r), G(g), B(b) {}
 };
@@ -24,19 +26,19 @@ struct RGBA8{
 	u8 G = 0;
 	u8 B = 0;
 	u8 A = U8MAX;
-	RGBA8& operator=(const RGB8 & other);
+	RGBA8& operator= (const RGB8& other);
 	RGBA8() {}
-	RGBA8(u8 r, u8 g, u8 b, u8 a) : R(r), G(g), B(b), A(a) {}
+	RGBA8 (u8 r, u8 g, u8 b, u8 a) : R(r), G(g), B(b), A(a) {}
 };
 
-RGB8& RGB8::operator=(const RGBA8 & other){
+RGB8& RGB8::operator= (const RGBA8& other) {
 	R = other.R;
 	G = other.G;
 	B = other.B;
 	return *this;
 }
 
-RGBA8& RGBA8::operator=(const RGB8 & other){
+RGBA8& RGBA8::operator= (const RGB8& other) {
 	R = other.R;
 	G = other.G;
 	B = other.B;
@@ -51,17 +53,17 @@ public:
 	size_t H, W;
 
 	Image_RGB8() = default;
-	Image_RGB8(size_t Height, size_t Width) : H(Height), W(Width), data(H, std::vector<RGB8>(W)) {}
-	Image_RGB8(const Image_RGBA8 & img);
+	Image_RGB8 (size_t Height, size_t Width) : H(Height), W(Width), data(H, vector<RGB8>(W)) {}
+	Image_RGB8 (const Image_RGBA8& img);
 
-	Image_RGB8 & operator=(const Image_RGBA8 & other);
+	Image_RGB8& operator= (const Image_RGBA8& other);
 
-	std::vector<RGB8> & operator[](const size_t h){ return data[h]; }
-	const std::vector<RGB8> & operator[](const size_t h) const{ return data[h]; }
+	vector<RGB8>& operator[] (const size_t h) { return data[h]; }
+	const vector<RGB8>& operator[] (const size_t h) const{ return data[h]; }
 
 
 protected:
-	std::vector<std::vector<RGB8>> data;
+	vector<vector<RGB8>> data;
 };
 
 class Image_RGBA8{
@@ -71,50 +73,50 @@ public:
 	size_t H, W;
 
 	Image_RGBA8() = default;
-	Image_RGBA8(size_t Height, size_t Width) : H(Height), W(Width), data(H, std::vector<RGBA8>(W)) {}
-	Image_RGBA8(const Image_RGB8 & img);
+	Image_RGBA8 (size_t Height, size_t Width) : H(Height), W(Width), data(H, vector<RGBA8>(W)) {}
+	Image_RGBA8 (const Image_RGB8& img);
 
-	Image_RGBA8 & operator=(const Image_RGB8 & other);
+	Image_RGBA8& operator= (const Image_RGB8& other);
 
-	std::vector<RGBA8> & operator[](size_t h){ return data[h]; }
-	const std::vector<RGBA8> & operator[] (size_t h) const{ return data[h]; }
+	vector<RGBA8>& operator[] (size_t h) { return data[h]; }
+	const vector<RGBA8>& operator[] (size_t h) const{ return data[h]; }
 
 
 protected:
-	std::vector<std::vector<RGBA8>> data;
+	vector<vector<RGBA8>> data;
 };
 
-Image_RGB8::Image_RGB8(const Image_RGBA8 & img) : H(img.H), W(img.W), data(H, std::vector<RGB8>(W)){
-	for(size_t h = 0; h < H; ++h){
-		for(size_t w = 0; w < W; ++w){
+Image_RGB8::Image_RGB8 (const Image_RGBA8& img) : H(img.H), W(img.W), data(H, vector<RGB8>(W)) {
+	for (size_t h = 0; h < H; ++h) {
+		for (size_t w = 0; w < W; ++w) {
 			data[h][w] = img.data[h][w];
 		}
 	}
 }
-Image_RGB8 & Image_RGB8::operator=(const Image_RGBA8 & other){
+Image_RGB8& Image_RGB8::operator= (const Image_RGBA8& other) {
 	H = other.H;
 	W = other.W;
-	data = std::vector<std::vector<RGB8>>(H, std::vector<RGB8>(W));
-	for(size_t h = 0; h < H; ++h){
-		for(size_t w = 0; w < W; ++w){
+	data = vector<vector<RGB8>>(H, vector<RGB8>(W));
+	for (size_t h = 0; h < H; ++h) {
+		for (size_t w = 0; w < W; ++w) {
 			data[h][w] = other.data[h][w];
 		}
 	}
 	return *this;
 }
-Image_RGBA8::Image_RGBA8(const Image_RGB8 & img) : H(img.H), W(img.W), data(H, std::vector<RGBA8>(W)){
-	for(size_t h = 0; h < H; ++h){
-		for(size_t w = 0; w < W; ++w){
+Image_RGBA8::Image_RGBA8 (const Image_RGB8& img) : H(img.H), W(img.W), data(H, vector<RGBA8>(W)) {
+	for (size_t h = 0; h < H; ++h) {
+		for (size_t w = 0; w < W; ++w) {
 			data[h][w] = img.data[h][w];
 		}
 	}
 }
-Image_RGBA8 & Image_RGBA8::operator=(const Image_RGB8 & other){
+Image_RGBA8& Image_RGBA8::operator= (const Image_RGB8& other) {
 	H = other.H;
 	W = other.W;
-	data = std::vector<std::vector<RGBA8>>(H, std::vector<RGBA8>(W));
-	for(size_t h = 0; h < H; ++h){
-		for(size_t w = 0; w < W; ++w){
+	data = vector<vector<RGBA8>>(H, vector<RGBA8>(W));
+	for (size_t h = 0; h < H; ++h) {
+		for (size_t w = 0; w < W; ++w) {
 			data[h][w] = other.data[h][w];
 		}
 	}
