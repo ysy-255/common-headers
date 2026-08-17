@@ -14,6 +14,9 @@ namespace Timer{
 	u64 milli(){
 		return std::chrono::duration_cast<std::chrono::milliseconds>(steady_clock::now() - start_time).count();
 	}
+	u64 micro(){
+		return std::chrono::duration_cast<std::chrono::microseconds>(steady_clock::now() - start_time).count();
+	}
 	u64 nano(){
 		return std::chrono::duration_cast<std::chrono::nanoseconds>(steady_clock::now() - start_time).count();
 	}
