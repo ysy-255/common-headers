@@ -529,7 +529,7 @@ protected:
 	}
 
 	bool unfilterer (
-		vector<u8>::iterator itr,
+		vector<u8>::iterator& itr,
 		vector<span<const u8>>& scanlines,
 		const size_t offset,
 		const size_t scanline_size,
@@ -569,6 +569,9 @@ protected:
 						uf_Paeth(scanlines[h - 1], scanline, offset);
 					}
 					break;
+				}
+				default: {
+					return false;
 				}
 			}
 			scanlines.push_back(scanline);
@@ -636,10 +639,10 @@ protected:
 	bool read_indexed_scanlines (
 		const vector<span<const u8>>& scanlines,
 		const span<const RGBA8> palette,
-		const u32 y0 = 0,
-		const u32 dy = 1,
-		const u32 x0 = 0,
-		const u32 dx = 1
+		const u32 y0,
+		const u32 dy,
+		const u32 x0,
+		const u32 dx
 	) {
 		u32 y = y0;
 		for (const auto& scanline : scanlines) {
@@ -659,8 +662,8 @@ protected:
 		const span<const u8> scanline,
 		const span<const RGBA8> palette,
 		span<Pixel> data_row,
-		const u32 x0 = 0,
-		const u32 dx = 1
+		const u32 x0,
+		const u32 dx
 	) {
 		const u32 width = data_row.size();
 		auto data_itr = data_row.begin() + x0;
@@ -707,10 +710,10 @@ protected:
 	bool read_indexed_scanlines (
 		const vector<span<const u8>>& scanlines,
 		const span<const RGBA8> palette,
-		const u32 y0 = 0,
-		const u32 dy = 1,
-		const u32 x0 = 0,
-		const u32 dx = 1
+		const u32 y0,
+		const u32 dy,
+		const u32 x0,
+		const u32 dx
 	) {
 		u32 y = y0;
 		for (const auto& scanline : scanlines) {
@@ -776,10 +779,10 @@ protected:
 	template<pixel_type Pixel_tmp>
 	void read_direct_scanlines (
 		const vector<span<const u8>>& scanlines,
-		const u32 y0 = 0,
-		const u32 dy = 1,
-		const u32 x0 = 0,
-		const u32 dx = 1
+		const u32 y0,
+		const u32 dy,
+		const u32 x0,
+		const u32 dx
 	) {
 		u32 y = y0;
 		for (const auto& scanline : scanlines) {
@@ -798,8 +801,8 @@ protected:
 	void read_direct_scanline (
 		const span<const u8> scanline,
 		span<Pixel> data_row,
-		const u32 x0 = 0,
-		const u32 dx = 1
+		const u32 x0,
+		const u32 dx
 	) {
 		const u32 width = data_row.size();
 		auto data_itr = data_row.begin() + x0;
@@ -841,10 +844,10 @@ protected:
 	template<u8 bit_depth> requires (is_png_subbyte<bit_depth>)
 	void read_direct_scanlines (
 		const vector<span<const u8>>& scanlines,
-		const u32 y0 = 0,
-		const u32 dy = 1,
-		const u32 x0 = 0,
-		const u32 dx = 1
+		const u32 y0,
+		const u32 dy,
+		const u32 x0,
+		const u32 dx
 	) {
 		u32 y = y0;
 		for (const auto& scanline : scanlines) {
