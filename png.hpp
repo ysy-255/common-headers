@@ -3,13 +3,13 @@
 
 #include <cmath>
 #include <array>
-// #include <iostream>
-
-#include <zlib.h>
+#include <iostream>
+using std::clog; using std::cerr;
 
 #include "file.hpp"
 #include "image.hpp"
 #include "enumflags.hpp"
+#include "simplezlib.hpp"
 
 using std::abs;
 using std::array;
@@ -87,8 +87,8 @@ public:
 		if (!std::equal(itr, itr + SIGNATURE_SIZE, correct_signature.begin())) return Err::INCORRECT_SIGNATURE;
 		itr += SIGNATURE_SIZE;
 
-		z_stream z; z.zalloc = Z_NULL; z.zfree = Z_NULL; z.opaque = Z_NULL;
-		if (inflateInit(&z) != Z_OK) return Err::ZLIB_ERROR;
+		SimpleInflate inflater;
+		if (!inflater) return Err::ZLIB_ERROR;
 
 		ChunkFlags chunk_flags;
 		bool last_IDAT = false;
@@ -106,7 +106,7 @@ public:
 
 			if (chunk_string == "IHDR") {
 				if (!check_chunk_order_and_set(chunk_flags, Chunk::IHDR)) return Err::INVALID_CHUNK_ORDER;
-				if (!read_IHDR(itr, length, W, H, bit_depth, color_type, interlace_method, z, filtered_stream)) return Err::UNRECOGNIZABLE;
+				if (!read_IHDR(itr, length, W, H, bit_depth, color_type, interlace_method, inflater, filtered_stream)) return Err::UNRECOGNIZABLE;
 			} else if (chunk_string == "PLTE") {
 				if (!check_chunk_order_and_set(chunk_flags, Chunk::PLTE)) return Err::INVALID_CHUNK_ORDER;
 				if ((color_type & 0b00000010) == 0) return Err::FORBIDDEN_CHUNK;
@@ -115,7 +115,7 @@ public:
 				if (chunk_flags.is_set(Chunk::IDAT) && !last_IDAT) return Err::INVALID_CHUNK_ORDER;
 				if (!check_chunk_order_and_set(chunk_flags, Chunk::IDAT)) return Err::INVALID_CHUNK_ORDER;
 				if (color_type == 3 && !chunk_flags.is_set(Chunk::PLTE)) return Err::MISSING_CRITICAL_CHUNK;
-				if (!read_IDAT(itr, length, z)) return Err::UNRECOGNIZABLE;
+				if (!read_IDAT(itr, length, inflater)) return Err::UNRECOGNIZABLE;
 			} else if (chunk_string == "IEND") {
 				if (!check_chunk_order_and_set(chunk_flags, Chunk::IEND)) return Err::INVALID_CHUNK_ORDER;
 				if (!read_IEND(itr, length)) return Err::UNRECOGNIZABLE;
@@ -131,8 +131,8 @@ public:
 		} while (itr < PNGstream.end());
 
 		if (chunk_flags.is_clear(Chunk::IEND)) return Err::MISSING_CRITICAL_CHUNK;
-		if (z.avail_out > 0) return Err::UNRECOGNIZABLE;
-		inflateEnd(&z);
+
+		if (!inflater.all_completed()) return Err::UNRECOGNIZABLE;
 
 		data = Image<Pixel>(H, W);
 
@@ -280,7 +280,7 @@ protected:
 		u8& bit_depth,
 		u8& color_type,
 		u8& interlace_method,
-		z_stream& z,
+		SimpleInflate& inflater,
 		vector<u8>& filtered_stream
 	) {
 		if (length != IHDR_SIZE) return false;
@@ -322,8 +322,7 @@ protected:
 		}
 
 		filtered_stream.resize(filtered_size);
-		z.next_out = filtered_stream.data();
-		z.avail_out = filtered_stream.size();
+		inflater.set_output(filtered_stream.data(), filtered_size);
 
 		return true;
 	}
@@ -331,15 +330,9 @@ protected:
 	bool read_IDAT (
 		vector<u8>::const_iterator& itr,
 		const u32 length,
-		z_stream& z
+		SimpleInflate& inflater
 	) {
-		z.next_in = const_cast<Bytef*>(reinterpret_cast<const Bytef*>(&*itr));
-		z.avail_in = length;
-		i32 ret;
-		do{
-			ret = inflate(&z, Z_FINISH);
-			if (ret != Z_OK && ret != Z_STREAM_END && (ret != Z_BUF_ERROR || z.avail_in > 0)) return false;
-		} while(z.avail_in > 0);
+		if (!inflater.feed_input(const_cast<u8*>(&*itr), length)) return false;
 		itr += length;
 		return true;
 	}
