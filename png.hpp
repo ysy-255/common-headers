@@ -92,7 +92,6 @@ public:
 
 		ChunkFlags chunk_flags;
 		bool last_IDAT = false;
-		bool seen_IEND = false;
 		u32 W = 0, H = 0;
 		u8 bit_depth = 0, color_type = 0, interlace_method = 0;
 		vector<u8> filtered_stream;
@@ -120,6 +119,7 @@ public:
 			} else if (chunk_string == "IEND") {
 				if (!check_chunk_order_and_set(chunk_flags, Chunk::IEND)) return Err::INVALID_CHUNK_ORDER;
 				if (!read_IEND(itr, length)) return Err::UNRECOGNIZABLE;
+				break;
 			} else if (chunk_string[0] & 0b00100000) {
 				if (chunk_flags.is_clear(Chunk::IHDR)) return Err::INVALID_CHUNK_ORDER;
 				itr += length;
@@ -128,8 +128,7 @@ public:
 			}
 			itr += 4; // CRC32
 			last_IDAT = chunk_string == "IDAT";
-			seen_IEND |= chunk_string == "IEND";
-		} while (!seen_IEND && itr < PNGstream.end());
+		} while (itr < PNGstream.end());
 
 		if (chunk_flags.is_clear(Chunk::IEND)) return Err::MISSING_CRITICAL_CHUNK;
 		if (z.avail_out > 0) return Err::UNRECOGNIZABLE;
@@ -252,8 +251,8 @@ protected:
 			if (chunk_flags.is_set(Chunk::PLTE)) return false;
 		}
 		// after PLTE
-		if (after_PLTE.is_set(chunk)) {
-			if (chunk_flags.is_clear(Chunk::PLTE)) return false;
+		if (chunk == Chunk::PLTE) {
+			if ((chunk_flags & after_PLTE).any_set()) return false;
 		}
 		// before IDAT
 		if (before_IDAT.is_set(chunk)) {
@@ -911,16 +910,16 @@ protected:
 	void write_pixel (vector<u8>::iterator& itr, const Pixel& pixel) {
 		using U = typename pixel_traits<Pixel>::channel_type;
 		if constexpr (pixel_traits<Pixel>::rgb) {
-			writeValue<U>(itr, pixel.R, false);
-			writeValue<U>(itr, pixel.G, false);
-			writeValue<U>(itr, pixel.B, false);
+			writeBE<U>(itr, pixel.R);
+			writeBE<U>(itr, pixel.G);
+			writeBE<U>(itr, pixel.B);
 			if constexpr (pixel_traits<Pixel>::alpha) {
-				writeValue<U>(itr, pixel.A, false);
+				writeBE<U>(itr, pixel.A);
 			}
 		} else {
-			writeValue<U>(itr, pixel.Y, false);
+			writeBE<U>(itr, pixel.Y);
 			if constexpr (pixel_traits<Pixel>::alpha) {
-				writeValue<U>(itr, pixel.A, false);
+				writeBE<U>(itr, pixel.A);
 			}
 		}
 	}
