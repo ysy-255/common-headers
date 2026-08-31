@@ -114,11 +114,12 @@ template<unsigned_channel T>
 struct Grey{
 	T Y = 0;
 
-	Grey() = default;
-	Grey (T y) : Y(y) {}
+	constexpr Grey() = default;
+	constexpr Grey (T y) : Y(y) {}
+	constexpr bool operator== (const Grey& other) const = default;
 
 	template<pixel_type Pixel> requires (!std::same_as<Pixel, Grey<T>>)
-	Grey (const Pixel& other) {
+	constexpr Grey (const Pixel& other) {
 		if constexpr (pixel_traits<Pixel>::rgb) {
 			Y = convert_bitdepth<T>(rgb_to_grey(other));
 		} else {
@@ -127,7 +128,7 @@ struct Grey{
 	}
 
 	template<pixel_type Pixel> requires (!std::same_as<Pixel, Grey<T>>)
-	Grey& operator= (const Pixel& other) {
+	constexpr Grey& operator= (const Pixel& other) {
 		if constexpr (pixel_traits<Pixel>::rgb) {
 			Y = convert_bitdepth<T>(rgb_to_grey(other));
 		} else {
@@ -142,12 +143,13 @@ struct GreyAlpha : Grey<T>{
 	using Grey<T>::Y;
 	T A = limits<T>::max();
 
-	GreyAlpha() = default;
-	GreyAlpha (T y)           : Grey<T>(y) {}
-	GreyAlpha (T y, T a)      : Grey<T>(y), A(a) {}
+	constexpr GreyAlpha() = default;
+	constexpr GreyAlpha (T y)           : Grey<T>(y) {}
+	constexpr GreyAlpha (T y, T a)      : Grey<T>(y), A(a) {}
+	constexpr bool operator== (const GreyAlpha& other) const = default;
 
 	template<pixel_type Pixel> requires (!std::same_as<Pixel, GreyAlpha<T>>)
-	GreyAlpha (const Pixel& other) : Grey<T>(other) {
+	constexpr GreyAlpha (const Pixel& other) : Grey<T>(other) {
 		if constexpr (pixel_traits<Pixel>::alpha) {
 			A = convert_bitdepth<T>(other.A);
 		} else {
@@ -156,7 +158,7 @@ struct GreyAlpha : Grey<T>{
 	}
 
 	template<pixel_type Pixel> requires (!std::same_as<Pixel, GreyAlpha<T>>)
-	GreyAlpha& operator= (const Pixel& other) {
+	constexpr GreyAlpha& operator= (const Pixel& other) {
 		Grey<T>::operator=(other);
 		if constexpr (pixel_traits<Pixel>::alpha) {
 			A = convert_bitdepth<T>(other.A);
@@ -173,12 +175,13 @@ struct RGB{
 	T G = 0;
 	T B = 0;
 
-	RGB() = default;
-	RGB (T r, T g, T b) : R(r), G(g), B(b) {}
-	RGB (T y)           : R(y), G(y), B(y) {}
+	constexpr RGB() = default;
+	constexpr RGB (T r, T g, T b) : R(r), G(g), B(b) {}
+	constexpr RGB (T y)           : R(y), G(y), B(y) {}
+	constexpr bool operator== (const RGB& other) const = default;
 
 	template<pixel_type Pixel> requires (!std::same_as<Pixel, RGB<T>>)
-	RGB (const Pixel& other) {
+	constexpr RGB (const Pixel& other) {
 		if constexpr (rgb_family<Pixel>) {
 			R = convert_bitdepth<T>(other.R);
 			G = convert_bitdepth<T>(other.G);
@@ -189,7 +192,7 @@ struct RGB{
 	}
 
 	template<pixel_type Pixel> requires (!std::same_as<Pixel, RGB<T>>)
-	RGB& operator= (const Pixel& other) {
+	constexpr RGB& operator= (const Pixel& other) {
 		if constexpr (rgb_family<Pixel>) {
 			R = convert_bitdepth<T>(other.R);
 			G = convert_bitdepth<T>(other.G);
@@ -208,14 +211,15 @@ struct RGBA : RGB<T>{
 	using RGB<T>::B;
 	T A = limits<T>::max();
 
-	RGBA() = default;
-	RGBA (T r, T g, T b)      : RGB<T>(r, g, b) {}
-	RGBA (T r, T g, T b, T a) : RGB<T>(r, g, b), A(a) {}
-	RGBA (T y)                : RGB<T>(y) {}
-	RGBA (T y, T a)           : RGB<T>(y), A(a) {}
+	constexpr RGBA() = default;
+	constexpr RGBA (T r, T g, T b)      : RGB<T>(r, g, b) {}
+	constexpr RGBA (T r, T g, T b, T a) : RGB<T>(r, g, b), A(a) {}
+	constexpr RGBA (T y)                : RGB<T>(y) {}
+	constexpr RGBA (T y, T a)           : RGB<T>(y), A(a) {}
+	constexpr bool operator== (const RGBA& other) const = default;
 
 	template<pixel_type Pixel> requires (!std::same_as<Pixel, RGBA<T>>)
-	RGBA (const Pixel& other) : RGB<T>(other) {
+	constexpr RGBA (const Pixel& other) : RGB<T>(other) {
 		if constexpr (pixel_traits<Pixel>::alpha) {
 			A = convert_bitdepth<T>(other.A);
 		} else {
@@ -224,7 +228,7 @@ struct RGBA : RGB<T>{
 	}
 
 	template<pixel_type Pixel> requires (!std::same_as<Pixel, RGBA<T>>)
-	RGBA& operator= (const Pixel& other) {
+	constexpr RGBA& operator= (const Pixel& other) {
 		RGB<T>::operator=(other);
 		if constexpr (pixel_traits<Pixel>::alpha) {
 			A = convert_bitdepth<T>(other.A);
