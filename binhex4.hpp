@@ -2,22 +2,26 @@
 #define BINHEX4_HPP
 
 #include <iostream>
+#include <array>
 
 #include "file.hpp"
 
+using std::string_view;
+using std::array;
+
 namespace BinHex4{
 
-	std::vector<u8> read(const std::string & path);
+	inline vector<u8> read (const string& path);
 
-	std::string last_FileName;
-	u8 last_Version;
-	std::string last_Type;
-	std::string last_Creator;
-	u16 last_Flags;
-	std::vector<u8> last_Resource;
+	inline string last_FileName;
+	inline u8 last_Version;
+	inline string last_Type;
+	inline string last_Creator;
+	inline u16 last_Flags;
+	inline vector<u8> last_Resource;
 
 	enum class Err;
-	enum Err last_error;
+	inline Err last_error;
 
 	enum class Err{
 		NONE, // 正常に処理されたはずです
@@ -31,7 +35,7 @@ namespace BinHex4{
 	namespace detail{
 		#define XX 0xFF
 		/* !"#$%&'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr */
-		const u8 table[] = {
+		inline constexpr array<u8, 0x60> table = {
 			  XX,0x00,0x01,0x02, 0x03,0x04,0x05,0x06, 0x07,0x08,0x09,0x0A, 0x0B,0x0C,  XX,  XX,
 			0x0D,0x0E,0x0F,0x10, 0x11,0x12,0x13,  XX, 0x14,0x15,  XX,  XX,   XX,  XX,  XX,  XX,
 			0x16,0x17,0x18,0x19, 0x1A,0x1B,0x1C,0x1D, 0x1E,0x1F,0x20,0x21, 0x22,0x23,0x24,  XX,
@@ -41,57 +45,56 @@ namespace BinHex4{
 		};
 		#undef XX
 
-		const std::string correct_comment = "(This file must be converted with BinHex 4.0)";
-		const u8 comment_size = correct_comment.size();
+		inline constexpr string_view correct_comment = "(This file must be converted with BinHex 4.0)";
 
-		enum Err trimLR(
-			std::vector<u8>::const_iterator & l,
-			std::vector<u8>::const_iterator & r
-		){
+		inline Err trimLR (
+			vector<u8>::const_iterator& l,
+			vector<u8>::const_iterator& r
+		) {
+			static const size_t comment_size = correct_comment.size();
 			l = std::find(l, r, '(');
-			if(l + comment_size > r) return Err::UNRECOGNIZABLE;
-			if(!std::equal(l, l + comment_size, correct_comment.data())) return Err::INCORRECT_COMMENT;
+			if (l + comment_size > r) return Err::UNRECOGNIZABLE;
+			if (!std::equal(l, l + comment_size, correct_comment.data())) return Err::INCORRECT_COMMENT;
 			l += comment_size;
 			l = std::find(l, r, ':');
 			l ++;
-			if(l > r) return Err::UNRECOGNIZABLE;
-			while(l != r) if(*--r == ':') break;
-			if(l > r) return Err::UNRECOGNIZABLE;
+			if (l > r) return Err::UNRECOGNIZABLE;
+			while (l != r) if (*--r == ':') break;
+			if (l > r) return Err::UNRECOGNIZABLE;
 			return Err::NONE;
 		}
 
-		enum Err decode(
-			std::vector<u8>::const_iterator & l,
-			std::vector<u8>::const_iterator & r,
-			std::vector<u8> & dst
-		){
+		inline Err decode (
+			vector<u8>::const_iterator& l,
+			vector<u8>::const_iterator& r,
+			vector<u8>& dst
+		) {
 			bool mode90 = false;
 			u8 cnt = 0;
-			while(l != r){
+			while (l != r) {
 				u8 ch = *l++;
 				ch -= 0x20;
-				if(ch >= 0x60) continue;
+				if (ch >= 0x60) continue;
 				ch = table[ch];
-				if(ch == 0xFF) return Err::OUT_OF_TABLE;
-				if(cnt > 0){
+				if (ch == 0xFF) return Err::OUT_OF_TABLE;
+				if (cnt > 0) {
 					dst.back() |= ch >> (6 - cnt);
-					if(mode90){
+					if (mode90) {
 						u8 times = dst.back();
 						dst.pop_back(); // times
-						if(times != 0){
+						if (times != 0) {
 							times --;
 							dst.pop_back(); // 0x90
 							u8 ch = dst.back();
 							dst.resize(dst.size() + times, ch);
 						}
 						mode90 = false;
-					}
-					else{
+					} else {
 						mode90 = dst.back() == 0x90;
 					}
 				}
 				cnt += 2;
-				if(cnt < 8){
+				if (cnt < 8) {
 					dst.push_back(ch << cnt);
 				}
 				cnt &= 0b110;
@@ -99,11 +102,14 @@ namespace BinHex4{
 			return Err::NONE;
 		}
 
-		enum Err extract(const std::vector<u8> & src, std::vector<u8> & dst){
+		inline Err extract (
+			const vector<u8>& src,
+			vector<u8>& dst
+		) {
 			auto itr = src.begin(), end = src.end();
-			if(itr + 26 >= end) return Err::FAULTY_DATA;
+			if (itr + 26 >= end) return Err::FAULTY_DATA;
 			u8 FileName_len = *itr++;
-			if(itr + FileName_len + 25 >= end) return Err::FAULTY_DATA;
+			if (itr + FileName_len + 25 >= end) return Err::FAULTY_DATA;
 			last_FileName = readString(itr, FileName_len);
 			last_Version = *itr++;
 			last_Type = readString(itr, 4);
@@ -112,31 +118,31 @@ namespace BinHex4{
 			u32 Data_len = readBE<u32>(itr);
 			u32 Rsrc_len = readBE<u32>(itr);
 			u16 crc1 = readBE<u16>(itr);
-			if(itr + Data_len > end) return Err::FAULTY_DATA;
+			if (itr + Data_len > end) return Err::FAULTY_DATA;
 			dst = readBytes(itr, Data_len);
-			if(itr + 2 > end) return Err::FAULTY_DATA;
+			if (itr + 2 > end) return Err::FAULTY_DATA;
 			u16 crc2 = readBE<u16>(itr);
-			if(itr + Rsrc_len > end) return Err::FAULTY_DATA;
+			if (itr + Rsrc_len > end) return Err::FAULTY_DATA;
 			last_Resource = readBytes(itr, Rsrc_len);
-			if(itr + 2 > end) return Err::FAULTY_DATA;
+			if (itr + 2 > end) return Err::FAULTY_DATA;
 			u16 crc3 = readBE<u16>(itr);
 			return Err::NONE;
 		}
 	}
 
-	std::vector<u8> read(const std::string & path){
+	inline vector<u8> read (const string& path) {
 		using namespace detail;
 
 		const auto raw = readFile(path);
 		auto l = raw.begin(), r = raw.end();
-		if((last_error = trimLR(l, r)) != Err::NONE) return {};
+		if ((last_error = trimLR(l, r)) != Err::NONE) return {};
 
-		std::vector<u8> stream;
+		vector<u8> stream;
 		stream.reserve(r - l);
-		if((last_error = decode(l, r, stream)) != Err::NONE) return {};
+		if ((last_error = decode(l, r, stream)) != Err::NONE) return {};
 
-		std::vector<u8> res;
-		if((last_error = extract(stream, res)) != Err::NONE) return {};
+		vector<u8> res;
+		if ((last_error = extract(stream, res)) != Err::NONE) return {};
 
 		return res;
 	}

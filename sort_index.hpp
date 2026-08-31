@@ -1,3 +1,6 @@
+#ifndef SORT_INDEX_HPP
+#define SORT_INDEX_HPP
+
 #include <algorithm>
 #include <vector>
 
@@ -14,6 +17,22 @@ std::vector<size_t> sorted_index(const std::vector<T> & vec){
 	for(size_t i = 0; i < sz; ++i){
 		res[i] = i;
 	}
+	std::sort(res.begin(), res.end(), [&](size_t i, size_t j){ return vec[i] < vec[j]; });
+	return res;
+}
+
+// ソート後の上位n個の各要素に尋ねます。
+// あなたはどこからきたのですか
+template<typename T>
+std::vector<size_t> nth_sorted_index(const std::vector<T>& vec, size_t n) {
+	size_t sz = vec.size();
+	if (n > sz) n = sz;
+	std::vector<size_t> res(sz);
+	for (size_t i = 0; i < sz; ++i) {
+		res[i] = i;
+	}
+	std::nth_element(res.begin(), res.begin() + n, res.end(), [&](size_t i, size_t j){ return vec[i] < vec[j]; });
+	res.resize(n);
 	std::sort(res.begin(), res.end(), [&](size_t i, size_t j){ return vec[i] < vec[j]; });
 	return res;
 }
@@ -41,3 +60,5 @@ std::vector<T> sort_follow(const std::vector<T> & vec, const std::vector<size_t>
 	}
 	return res;
 }
+
+#endif
