@@ -1,7 +1,6 @@
 #ifndef BINHEX4_HPP
 #define BINHEX4_HPP
 
-#include <iostream>
 #include <array>
 
 #include "file.hpp"

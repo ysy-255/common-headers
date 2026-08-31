@@ -3,7 +3,7 @@
 
 #include "int.hpp"
 
-u8 bit_ceil_exp(u64 n){
+inline constexpr u8 bit_ceil_exp(u64 n){
 	if(n <= 1) return 0;
 	return 64 - __builtin_clzll(n - 1);
 }

@@ -7,17 +7,17 @@
 
 namespace Timer{
 	using std::chrono::steady_clock;
-	steady_clock::time_point start_time = steady_clock::now();
-	void start(){
+	inline steady_clock::time_point start_time = steady_clock::now();
+	inline void start(){
 		start_time = steady_clock::now();
 	}
-	u64 milli(){
+	inline u64 milli(){
 		return std::chrono::duration_cast<std::chrono::milliseconds>(steady_clock::now() - start_time).count();
 	}
-	u64 micro(){
+	inline u64 micro(){
 		return std::chrono::duration_cast<std::chrono::microseconds>(steady_clock::now() - start_time).count();
 	}
-	u64 nano(){
+	inline u64 nano(){
 		return std::chrono::duration_cast<std::chrono::nanoseconds>(steady_clock::now() - start_time).count();
 	}
 }

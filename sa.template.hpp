@@ -3,13 +3,14 @@
 #include "int.hpp"
 #include "float.hpp"
 #include "timer.hpp"
+
 #include "rand.hpp"
 
 namespace SA{
 	const f64 temp_log_start = 5, temp_log_end = -5;
-	f64 temp = 0;
+	inline f64 temp = 0;
 	const u32 attemps_cnt_in_1misec = 1000;
-	void core() {
+	inline void core() {
 		/*
 		u32 r1 = Rand::value(L1),
 			r2 = Rand::value(L2),
@@ -22,7 +23,7 @@ namespace SA{
 		}
 		*/
 	}
-	void main (u32 time_limit = 1900) {
+	inline void main (u32 time_limit = 1900) {
 		u32 timer_mili;
 		while ((timer_mili = Timer::milli()) < time_limit) {
 			temp = std::exp(temp_log_start + (temp_log_end - temp_log_start) * timer_mili / time_limit);
