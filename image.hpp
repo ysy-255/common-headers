@@ -1,126 +1,296 @@
 #ifndef IMAGE_HPP
 #define IMAGE_HPP
 
+#include <concepts>
+#include <limits>
+#include <type_traits>
+#include <stdexcept>
 #include <vector>
+#include <span>
 
 #include "int.hpp"
 
+template<typename T>
+using limits = std::numeric_limits<T>;
 using std::vector;
+using std::span;
 
-struct RGB8;
-struct RGBA8;
-class Image_RGB8;
-class Image_RGBA8;
+template<class T>
+concept unsigned_channel =
+	std::unsigned_integral<T> &&
+	!std::same_as<T, bool> &&
+	std::same_as<T, std::remove_cv_t<T>>;
 
-struct RGB8{
-	u8 R = 0;
-	u8 G = 0;
-	u8 B = 0;
-	RGB8& operator= (const RGBA8& other);
-	RGB8() {}
-	RGB8(u8 r, u8 g, u8 b) : R(r), G(g), B(b) {}
+template<unsigned_channel T> struct Grey;
+template<unsigned_channel T> struct GreyAlpha;
+template<unsigned_channel T> struct RGB;
+template<unsigned_channel T> struct RGBA;
+
+using RGB8  = RGB<u8>;
+using RGBA8 = RGBA<u8>;
+
+template<class T>
+struct pixel_traits;
+
+template<unsigned_channel T>
+struct pixel_traits<Grey<T>> {
+	using channel_type = T;
+	static constexpr bool rgb = false;
+	static constexpr bool alpha = false;
 };
 
-struct RGBA8{
-	u8 R = 0;
-	u8 G = 0;
-	u8 B = 0;
-	u8 A = U8MAX;
-	RGBA8& operator= (const RGB8& other);
-	RGBA8() {}
-	RGBA8 (u8 r, u8 g, u8 b, u8 a) : R(r), G(g), B(b), A(a) {}
+template<unsigned_channel T>
+struct pixel_traits<GreyAlpha<T>> {
+	using channel_type = T;
+	static constexpr bool rgb = false;
+	static constexpr bool alpha = true;
 };
 
-RGB8& RGB8::operator= (const RGBA8& other) {
-	R = other.R;
-	G = other.G;
-	B = other.B;
-	return *this;
+template<unsigned_channel T>
+struct pixel_traits<RGB<T>> {
+	using channel_type = T;
+	static constexpr bool rgb = true;
+	static constexpr bool alpha = false;
+};
+
+template<unsigned_channel T>
+struct pixel_traits<RGBA<T>> {
+	using channel_type = T;
+	static constexpr bool rgb = true;
+	static constexpr bool alpha = true;
+};
+
+template<class T>
+concept pixel_type = requires {
+	typename pixel_traits<T>::channel_type;
+	pixel_traits<T>::rgb;
+	pixel_traits<T>::alpha;
+};
+
+template<class T>
+concept rgb_family =
+	pixel_type<T> &&
+	pixel_traits<T>::rgb;
+
+template<pixel_type Pixel>
+using pixel_channel_t = typename pixel_traits<Pixel>::channel_type;
+
+// Rec. 601
+template<rgb_family Pixel>
+inline constexpr pixel_channel_t<Pixel> rgb_to_grey (const Pixel& pixel) {
+	return static_cast<pixel_channel_t<Pixel>>(
+		pixel.R * 0.299 + pixel.G * 0.587 + pixel.B * 0.114
+	);
 }
 
-RGBA8& RGBA8::operator= (const RGB8& other) {
-	R = other.R;
-	G = other.G;
-	B = other.B;
-	A = U8MAX;
-	return *this;
+template<unsigned_channel To, unsigned_channel From>
+	requires (
+		(limits<To>::digits % limits<From>::digits == 0) ||
+		(limits<To>::digits < limits<From>::digits)
+	)
+inline constexpr To convert_bitdepth (const From from) {
+	constexpr auto from_bits = limits<From>::digits;
+	constexpr auto to_bits = limits<To>::digits;
+	if constexpr (from_bits == to_bits) {
+		return static_cast<To>(from);
+	} else if constexpr (from_bits < to_bits) {
+		constexpr To multiplier = limits<To>::max() / limits<From>::max();
+		return static_cast<To>(multiplier * static_cast<To>(from));
+	} else {
+		return static_cast<To>(from >> (from_bits - to_bits));
+	}
+}
+template<unsigned_channel To, u8 from_digits>
+	requires (
+		(from_digits == 1 || from_digits == 2 || from_digits == 4) &&
+		(limits<To>::digits % from_digits == 0)
+	)
+inline constexpr To convert_bitdepth (const u8 from) {
+	constexpr static To multiplier = limits<To>::max() / ((1 << from_digits) - 1);
+	return static_cast<To>(multiplier * static_cast<To>(from));
 }
 
-class Image_RGB8{
+template<unsigned_channel T>
+struct Grey{
+	T Y = 0;
+
+	constexpr Grey() = default;
+	constexpr Grey (T y) : Y(y) {}
+	constexpr bool operator== (const Grey& other) const = default;
+
+	template<pixel_type Pixel> requires (!std::same_as<Pixel, Grey<T>>)
+	constexpr Grey (const Pixel& other) {
+		if constexpr (pixel_traits<Pixel>::rgb) {
+			Y = convert_bitdepth<T>(rgb_to_grey(other));
+		} else {
+			Y = convert_bitdepth<T>(other.Y);
+		}
+	}
+
+	template<pixel_type Pixel> requires (!std::same_as<Pixel, Grey<T>>)
+	constexpr Grey& operator= (const Pixel& other) {
+		if constexpr (pixel_traits<Pixel>::rgb) {
+			Y = convert_bitdepth<T>(rgb_to_grey(other));
+		} else {
+			Y = convert_bitdepth<T>(other.Y);
+		}
+		return *this;
+	}
+};
+
+template<unsigned_channel T>
+struct GreyAlpha : Grey<T>{
+	using Grey<T>::Y;
+	T A = limits<T>::max();
+
+	constexpr GreyAlpha() = default;
+	constexpr GreyAlpha (T y)           : Grey<T>(y) {}
+	constexpr GreyAlpha (T y, T a)      : Grey<T>(y), A(a) {}
+	constexpr bool operator== (const GreyAlpha& other) const = default;
+
+	template<pixel_type Pixel> requires (!std::same_as<Pixel, GreyAlpha<T>>)
+	constexpr GreyAlpha (const Pixel& other) : Grey<T>(other) {
+		if constexpr (pixel_traits<Pixel>::alpha) {
+			A = convert_bitdepth<T>(other.A);
+		} else {
+			A = limits<T>::max();
+		}
+	}
+
+	template<pixel_type Pixel> requires (!std::same_as<Pixel, GreyAlpha<T>>)
+	constexpr GreyAlpha& operator= (const Pixel& other) {
+		Grey<T>::operator=(other);
+		if constexpr (pixel_traits<Pixel>::alpha) {
+			A = convert_bitdepth<T>(other.A);
+		} else {
+			A = limits<T>::max();
+		}
+		return *this;
+	}
+};
+
+template<unsigned_channel T>
+struct RGB{
+	T R = 0;
+	T G = 0;
+	T B = 0;
+
+	constexpr RGB() = default;
+	constexpr RGB (T r, T g, T b) : R(r), G(g), B(b) {}
+	constexpr RGB (T y)           : R(y), G(y), B(y) {}
+	constexpr bool operator== (const RGB& other) const = default;
+
+	template<pixel_type Pixel> requires (!std::same_as<Pixel, RGB<T>>)
+	constexpr RGB (const Pixel& other) {
+		if constexpr (rgb_family<Pixel>) {
+			R = convert_bitdepth<T>(other.R);
+			G = convert_bitdepth<T>(other.G);
+			B = convert_bitdepth<T>(other.B);
+		} else {
+			R = G = B = convert_bitdepth<T>(other.Y);
+		}
+	}
+
+	template<pixel_type Pixel> requires (!std::same_as<Pixel, RGB<T>>)
+	constexpr RGB& operator= (const Pixel& other) {
+		if constexpr (rgb_family<Pixel>) {
+			R = convert_bitdepth<T>(other.R);
+			G = convert_bitdepth<T>(other.G);
+			B = convert_bitdepth<T>(other.B);
+		} else {
+			R = G = B = convert_bitdepth<T>(other.Y);
+		}
+		return *this;
+	}
+};
+
+template<unsigned_channel T>
+struct RGBA : RGB<T>{
+	using RGB<T>::R;
+	using RGB<T>::G;
+	using RGB<T>::B;
+	T A = limits<T>::max();
+
+	constexpr RGBA() = default;
+	constexpr RGBA (T r, T g, T b)      : RGB<T>(r, g, b) {}
+	constexpr RGBA (T r, T g, T b, T a) : RGB<T>(r, g, b), A(a) {}
+	constexpr RGBA (T y)                : RGB<T>(y) {}
+	constexpr RGBA (T y, T a)           : RGB<T>(y), A(a) {}
+	constexpr bool operator== (const RGBA& other) const = default;
+
+	template<pixel_type Pixel> requires (!std::same_as<Pixel, RGBA<T>>)
+	constexpr RGBA (const Pixel& other) : RGB<T>(other) {
+		if constexpr (pixel_traits<Pixel>::alpha) {
+			A = convert_bitdepth<T>(other.A);
+		} else {
+			A = limits<T>::max();
+		}
+	}
+
+	template<pixel_type Pixel> requires (!std::same_as<Pixel, RGBA<T>>)
+	constexpr RGBA& operator= (const Pixel& other) {
+		RGB<T>::operator=(other);
+		if constexpr (pixel_traits<Pixel>::alpha) {
+			A = convert_bitdepth<T>(other.A);
+		} else {
+			A = limits<T>::max();
+		}
+		return *this;
+	}
+};
+
+template<pixel_type Pixel>
+class Image{
 public:
-	friend class Image_RGBA8;
 
-	size_t H, W;
+	Image() = default;
+	Image (u32 Height, u32 Width) : H(Height), W(Width), data(H * W) {}
 
-	Image_RGB8() = default;
-	Image_RGB8 (size_t Height, size_t Width) : H(Height), W(Width), data(H, vector<RGB8>(W)) {}
-	Image_RGB8 (const Image_RGBA8& img);
+	template<pixel_type OtherPixel> requires (!std::same_as<OtherPixel, Pixel>)
+	Image (const Image<OtherPixel>& other) :
+		H(other.H), W(other.W), data(H * W) {
+		for (size_t i = 0; i < H * W; ++i) {
+			data[i] = Pixel(other.data[i]);
+		}
+	}
 
-	Image_RGB8& operator= (const Image_RGBA8& other);
+	template<pixel_type OtherPixel> requires (!std::same_as<OtherPixel, Pixel>)
+	Image& operator= (const Image<OtherPixel>& other) {
+		H = other.H;
+		W = other.W;
+		data.resize(H * W);
+		for (size_t i = 0; i < H * W; ++i) {
+			data[i] = Pixel(other.data[i]);
+		}
+		return *this;
+	}
 
-	vector<RGB8>& operator[] (const size_t h) { return data[h]; }
-	const vector<RGB8>& operator[] (const size_t h) const{ return data[h]; }
+	u32 height() const { return H; }
+	u32 width() const { return W; }
 
+	span<Pixel> operator[] (const u32 h) { return {data.data() + h * W, W}; }
+	span<const Pixel> operator[] (const u32 h) const{ return {data.data() + h * W, W}; }
+
+	Pixel& at (const u32 h, const u32 w) {
+		if (h >= H || w >= W) throw std::out_of_range("Image::at");
+		return data[h * W + w];
+	}
+	const Pixel& at (const u32 h, const u32 w) const {
+		if (h >= H || w >= W) throw std::out_of_range("Image::at");
+		return data[h * W + w];
+	}
+
+	vector<Pixel>::iterator begin() { return data.begin(); }
+	vector<Pixel>::iterator end() { return data.end(); }
+	vector<Pixel>::const_iterator begin() const { return data.begin(); }
+	vector<Pixel>::const_iterator end() const { return data.end(); }
 
 protected:
-	vector<vector<RGB8>> data;
+	template<pixel_type OtherPixel>
+	friend class Image;
+
+	size_t H = 0, W = 0;
+	vector<Pixel> data;
 };
-
-class Image_RGBA8{
-public:
-	friend class Image_RGB8;
-
-	size_t H, W;
-
-	Image_RGBA8() = default;
-	Image_RGBA8 (size_t Height, size_t Width) : H(Height), W(Width), data(H, vector<RGBA8>(W)) {}
-	Image_RGBA8 (const Image_RGB8& img);
-
-	Image_RGBA8& operator= (const Image_RGB8& other);
-
-	vector<RGBA8>& operator[] (size_t h) { return data[h]; }
-	const vector<RGBA8>& operator[] (size_t h) const{ return data[h]; }
-
-
-protected:
-	vector<vector<RGBA8>> data;
-};
-
-Image_RGB8::Image_RGB8 (const Image_RGBA8& img) : H(img.H), W(img.W), data(H, vector<RGB8>(W)) {
-	for (size_t h = 0; h < H; ++h) {
-		for (size_t w = 0; w < W; ++w) {
-			data[h][w] = img.data[h][w];
-		}
-	}
-}
-Image_RGB8& Image_RGB8::operator= (const Image_RGBA8& other) {
-	H = other.H;
-	W = other.W;
-	data = vector<vector<RGB8>>(H, vector<RGB8>(W));
-	for (size_t h = 0; h < H; ++h) {
-		for (size_t w = 0; w < W; ++w) {
-			data[h][w] = other.data[h][w];
-		}
-	}
-	return *this;
-}
-Image_RGBA8::Image_RGBA8 (const Image_RGB8& img) : H(img.H), W(img.W), data(H, vector<RGBA8>(W)) {
-	for (size_t h = 0; h < H; ++h) {
-		for (size_t w = 0; w < W; ++w) {
-			data[h][w] = img.data[h][w];
-		}
-	}
-}
-Image_RGBA8& Image_RGBA8::operator= (const Image_RGB8& other) {
-	H = other.H;
-	W = other.W;
-	data = vector<vector<RGBA8>>(H, vector<RGBA8>(W));
-	for (size_t h = 0; h < H; ++h) {
-		for (size_t w = 0; w < W; ++w) {
-			data[h][w] = other.data[h][w];
-		}
-	}
-	return *this;
-}
 
 #endif
