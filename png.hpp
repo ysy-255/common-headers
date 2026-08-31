@@ -40,11 +40,9 @@ enum class PNG3_Chunk{
 
 
 /**
- *特筆すべき事項:
- * `IHDR`, `IDAT`, `IEND`, `PLTE`以外のチャンクに非対応
- * 途中でエラーを吐いた際にinflateEnd()をせずに終了してしまう
+ * コンパイル時に `-lz` を指定してください\n
+ * 対応しているチャンクは `IHDR`, `PLTE`, `IDAT`, `IEND`, `tRNS` です
  */
-// コンパイル時に `-lz` を指定してください
 template<pixel_type Pixel> class PNG3;
 
 using PNG = PNG3<RGBA8>;
@@ -302,10 +300,10 @@ protected:
 		u8 filter_method = *itr++;
 		interlace_method = *itr++;
 
-		if (W == 0 || H == 0) return false; // https://www.w3.org/TR/png/#11IHDR
-		if (W > FOUR_BYTE_LIMIT || H > FOUR_BYTE_LIMIT) return false; // https://www.w3.org/TR/png/#dfn-png-four-byte-unsigned-integer
+		if (W == 0 || H == 0) return false; // https://www.w3.org/TR/png-3/#11IHDR
+		if (W > FOUR_BYTE_LIMIT || H > FOUR_BYTE_LIMIT) return false; // https://www.w3.org/TR/png-3/#dfn-png-four-byte-unsigned-integer
 
-		// https://www.w3.org/TR/png/#table111
+		// https://www.w3.org/TR/png-3/#table111
 		if (bit_depth == 1 || bit_depth == 2 || bit_depth == 4) {
 			if (color_type != 0 && color_type != 3) return false;
 		} else if (bit_depth == 8) {
@@ -316,9 +314,9 @@ protected:
 			return false;
 		}
 
-		if (compression_method) return false; // https://www.w3.org/TR/png/#10CompressionCM0
-		if (filter_method) return false; // https://www.w3.org/TR/png/#9FtIntro
-		if (interlace_method > 1) return false; // https://www.w3.org/TR/png/#8InterlaceMethods
+		if (compression_method) return false; // https://www.w3.org/TR/png-3/#10CompressionCM0
+		if (filter_method) return false; // https://www.w3.org/TR/png-3/#9FtIntro
+		if (interlace_method > 1) return false; // https://www.w3.org/TR/png-3/#8InterlaceMethods
 
 		size_t filtered_size = 0;
 
