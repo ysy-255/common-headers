@@ -203,6 +203,7 @@ protected:
 	static constexpr u32 IEND_crc = 0xAE'42'60'82;
 
 	static size_t calc_pixel_count (const u32 extent, const u32 start, const u32 delta) {
+		if (extent <= start) return 0;
 		return (extent - start + delta - 1) / delta;
 	}
 
