@@ -150,7 +150,7 @@ public:
 	}
 
 	// lelel:圧縮レベル(0~9)
-	void write (const string& path, u8 level = 7) {
+	bool write (const string& path, u8 level = 7) {
 		level = std::clamp(level, u8(0), u8(9));
 		constexpr u8 bit_depth = limits<T>::digits;
 		constexpr u8 color_type = (pixel_traits<Pixel>::rgb ? 2 : 0) | (pixel_traits<Pixel>::alpha ? 4 : 0);
@@ -166,6 +166,9 @@ public:
 		const size_t tail_offset = (4) + (4 + 4 + IEND_SIZE + 4);
 		deflate_RLE(filtered_stream, PNGstream, head_offset, tail_offset, level);
 		const size_t IDAT_size = PNGstream.size() - head_offset - tail_offset;
+		if (IDAT_size == 0) {
+			return false;
+		}
 		vector<u8>::iterator itr = PNGstream.begin();
 		copy(correct_signature.begin(), correct_signature.end(), itr);
 		itr += correct_signature.size();
@@ -173,6 +176,7 @@ public:
 		write_IDAT(itr, IDAT_size);
 		write_IEND(itr);
 		writeFile(path, PNGstream);
+		return true;
 	}
 
 
@@ -1043,7 +1047,10 @@ protected:
 			15, // ウィンドウサイズは最大
 			8, // 手元だと 8 が最も良かった
 			Z_RLE // ランレングス圧縮
-		) != Z_OK) return;
+		) != Z_OK) {
+			dest.resize(head_offset + tail_offset);
+			return;
+		}
 		z.next_in = src.data();
 		z.avail_in = src.size();
 		z.next_out = dest.data() + head_offset;
@@ -1051,7 +1058,10 @@ protected:
 		i32 ret;
 		do{
 			ret = deflate(&z, Z_FINISH);
-			if (ret != Z_OK && ret != Z_STREAM_END) return;
+			if (ret != Z_OK && ret != Z_STREAM_END) {
+				dest.resize(head_offset + tail_offset);
+				return;
+			}
 		} while (ret != Z_STREAM_END);
 		deflateEnd(&z);
 		dest.resize(head_offset + z.total_out + tail_offset);
