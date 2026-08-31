@@ -5,6 +5,7 @@
 using std::clog;
 using std::cerr;
 using std::endl;
+using std::sort;
 
 const string base_path = "samples/PngSuite/files/";
 const string file_format = ".png";
