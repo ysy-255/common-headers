@@ -96,7 +96,9 @@ public:
 		u8 bit_depth = 0, color_type = 0, interlace_method = 0;
 		vector<u8> filtered_stream;
 		array<RGBA8, 256> palette_base{};
-		span<const RGBA8> palette;
+		span<RGBA8> palette;
+		bool has_trns = false;
+		array<u16, 3> trns{};
 		do {
 			u32 length = readBE<u32>(itr);
 			if (length > FOUR_BYTE_LIMIT) return Err::UNRECOGNIZABLE;
@@ -114,12 +116,18 @@ public:
 			} else if (chunk_string == "IDAT") {
 				if (chunk_flags.is_set(Chunk::IDAT) && !last_IDAT) return Err::INVALID_CHUNK_ORDER;
 				if (!check_chunk_order_and_set(chunk_flags, Chunk::IDAT)) return Err::INVALID_CHUNK_ORDER;
-				if (color_type == 3 && !chunk_flags.is_set(Chunk::PLTE)) return Err::MISSING_CRITICAL_CHUNK;
+				if (color_type == 3 && !chunk_flags.is_set(Chunk::PLTE)) return Err::INVALID_CHUNK_ORDER;
 				if (!read_IDAT(itr, length, inflater)) return Err::UNRECOGNIZABLE;
 			} else if (chunk_string == "IEND") {
 				if (!check_chunk_order_and_set(chunk_flags, Chunk::IEND)) return Err::INVALID_CHUNK_ORDER;
 				if (!read_IEND(itr, length)) return Err::UNRECOGNIZABLE;
 				break;
+			} else if (chunk_string == "tRNS") {
+				if (!check_chunk_order_and_set(chunk_flags, Chunk::tRNS)) return Err::INVALID_CHUNK_ORDER;
+				if (color_type == 3 && !chunk_flags.is_set(Chunk::PLTE)) return Err::INVALID_CHUNK_ORDER;
+				if (color_type == 4 || color_type == 6) return Err::FORBIDDEN_CHUNK;
+				has_trns = true;
+				read_tRNS(itr, length, color_type, bit_depth, trns, palette);
 			} else if (chunk_string[0] & 0b00100000) {
 				if (chunk_flags.is_clear(Chunk::IHDR)) return Err::INVALID_CHUNK_ORDER;
 				itr += length;
@@ -139,7 +147,7 @@ public:
 		if (color_type == 3) {
 			if (!read_indexed_data(filtered_stream.begin(), H, W, bit_depth, interlace_method, palette)) return Err::UNRECOGNIZABLE;
 		} else {
-			if (!read_direct_data(filtered_stream.begin(), H, W, bit_depth, color_type, interlace_method)) return Err::UNRECOGNIZABLE;
+			if (!read_direct_data(filtered_stream.begin(), H, W, bit_depth, color_type, interlace_method, has_trns, trns)) return Err::UNRECOGNIZABLE;
 		}
 
 		return Err::NONE;
@@ -183,6 +191,8 @@ protected:
 	static constexpr u32 IEND_SIZE = 0;
 	static constexpr u32 FILTER_TYPE_SIZE = 1;
 	static constexpr u32 FOUR_BYTE_LIMIT = (1U << 31) - 1;
+	static constexpr u32 MAX_BIT_DEPTH = 16;
+	static constexpr u32 MAX_BYTE_DEPTH = 2;
 
 	static constexpr array<u8, SIGNATURE_SIZE> correct_signature = {0b10001001, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
 
@@ -223,17 +233,17 @@ protected:
 		Chunk::IHDR, Chunk::cHRM, Chunk::cICP, Chunk::gAMA, Chunk::iCCP, Chunk::mDCV, Chunk::cLLI, Chunk::sBIT, Chunk::sRGB
 	});
 
-	static constexpr ChunkFlags after_PLTE =
+	/* static constexpr ChunkFlags after_PLTE =
 	ChunkFlags({
 		Chunk::bKGD, Chunk::hIST, Chunk::tRNS
-	});
+	}); */
 
 	static constexpr ChunkFlags before_IDAT =
 	 ~ ChunkFlags({
 		Chunk::IDAT, Chunk::IEND, Chunk::fcTL, Chunk::fdAT, Chunk::tIME, Chunk::iTXt, Chunk::tEXt, Chunk::zTXt
 	});
 
-	// 順序チェックとフラグの追加（「IDATの連続」「colotype=3の場合PLTE必須」「color_type=0,4の場合PLTE禁止」を除く）
+	// 順序チェックとフラグの追加（「IDATの連続」「colotype=3の場合PLTE必須」「color_type=0,4の場合PLTE禁止」「PLTEの後」を除く）
 	// https://www.w3.org/TR/png-3/#table53
 	bool check_chunk_order_and_set (ChunkFlags& chunk_flags, const Chunk chunk) {
 		// about IHDR
@@ -251,9 +261,9 @@ protected:
 			if (chunk_flags.is_set(Chunk::PLTE)) return false;
 		}
 		// after PLTE
-		if (chunk == Chunk::PLTE) {
+		/* if (chunk == Chunk::PLTE) {
 			if ((chunk_flags & after_PLTE).any_set()) return false;
-		}
+		} */
 		// before IDAT
 		if (before_IDAT.is_set(chunk)) {
 			if (chunk_flags.is_set(Chunk::IDAT)) return false;
@@ -341,7 +351,7 @@ protected:
 		vector<u8>::const_iterator& itr,
 		const u32 length,
 		array<RGBA8, 256>& palette_base,
-		span<const RGBA8>& palette,
+		span<RGBA8>& palette,
 		u8 bit_depth
 	) {
 		if (length > u32((1 << bit_depth) * 3) || length % 3 > 0) return false;
@@ -351,7 +361,7 @@ protected:
 			palette_base[i].G = *itr++;
 			palette_base[i].B = *itr++;
 		}
-		palette = span<const RGBA8>(palette_base.data(), palette_size);
+		palette = span<RGBA8>(palette_base.data(), palette_size);
 		return true;
 	}
 
@@ -361,6 +371,39 @@ protected:
 	) {
 		if (length != IEND_SIZE) return false;
 		itr += length;
+		return true;
+	}
+
+	bool read_tRNS (
+		vector<u8>::const_iterator& itr,
+		const u32 length,
+		const u8 color_type,
+		const u8 bit_depth,
+		array<u16, 3>& trns,
+		span<RGBA8>& palette
+	) {
+		const u16 mask = (1 << bit_depth) - 1;
+		switch (color_type) {
+		case 0:{
+			if (length != MAX_BYTE_DEPTH * 1) return false;
+			trns[0] = readBE<u16>(itr) & mask;
+			break;
+		}
+		case 2:{
+			if (length != MAX_BYTE_DEPTH * 3) return false;
+			trns[0] = readBE<u16>(itr) & mask;
+			trns[1] = readBE<u16>(itr) & mask;
+			trns[2] = readBE<u16>(itr) & mask;
+			break;
+		}
+		case 3:{
+			if (length > palette.size()) return false;
+			for (u32 i = 0; i < length; ++i) {
+				palette[i].A = *itr++;
+			}
+			break;
+		}
+		}
 		return true;
 	}
 
@@ -638,7 +681,7 @@ protected:
 
 	bool read_indexed_scanlines (
 		const vector<span<const u8>>& scanlines,
-		const span<const RGBA8> palette,
+		const span<RGBA8> palette,
 		const u32 y0,
 		const u32 dy,
 		const u32 x0,
@@ -660,7 +703,7 @@ protected:
 	template<u8 bit_depth> requires (is_png_subbyte<bit_depth>)
 	bool read_indexed_scanline (
 		const span<const u8> scanline,
-		const span<const RGBA8> palette,
+		const span<RGBA8> palette,
 		span<Pixel> data_row,
 		const u32 x0,
 		const u32 dx
@@ -668,39 +711,16 @@ protected:
 		const u32 width = data_row.size();
 		auto data_itr = data_row.begin() + x0;
 		u32 pixel_count = calc_pixel_count(width, x0, dx);
+		constexpr u8 mask = (1 << bit_depth) - 1;
 		u8 index;
-		if constexpr (bit_depth == 1) {
-			for (const u8 byte : scanline) {
-				for (u8 shift = 8; shift > 0;) {
-					shift -= 1;
-					if (pixel_count-- == 0) return true;
-					index = (byte >> shift) & 1;
-					if (index >= palette.size()) return false;
-					*data_itr = palette[index];
-					data_itr += dx;
-				}
-			}
-		} else if constexpr (bit_depth == 2) {
-			for (const u8 byte : scanline) {
-				for (u8 shift = 8; shift > 0;) {
-					shift -= 2;
-					if (pixel_count-- == 0) return true;
-					index = (byte >> shift) & 3;
-					if (index >= palette.size()) return false;
-					*data_itr = palette[index];
-					data_itr += dx;
-				}
-			}
-		} else if constexpr (bit_depth == 4) {
-			for (const u8 byte : scanline) {
-				for (u8 shift = 8; shift > 0;) {
-					shift -= 4;
-					if (pixel_count-- == 0) return true;
-					index = (byte >> shift) & 15;
-					if (index >= palette.size()) return false;
-					*data_itr = palette[index];
-					data_itr += dx;
-				}
+		for (const u8 byte : scanline) {
+			for (u8 shift = 8; shift > 0;) {
+				shift -= bit_depth;
+				if (pixel_count-- == 0) return true;
+				index = (byte >> shift) & mask;
+				if (index >= palette.size()) return false;
+				*data_itr = palette[index];
+				data_itr += dx;
 			}
 		}
 		return true;
@@ -709,7 +729,7 @@ protected:
 	template<u8 bit_depth> requires (is_png_subbyte<bit_depth>)
 	bool read_indexed_scanlines (
 		const vector<span<const u8>>& scanlines,
-		const span<const RGBA8> palette,
+		const span<RGBA8> palette,
 		const u32 y0,
 		const u32 dy,
 		const u32 x0,
@@ -729,7 +749,7 @@ protected:
 		const u32 W,
 		const u8 bit_depth,
 		const u8 interlace_method,
-		const span<const RGBA8> palette
+		const span<RGBA8> palette
 	) {
 		for (u8 i = (interlace_method ? 0 : 7); i < (interlace_method ? 7 : 8); ++i) {
 			const u32 y0 = adam7_offsets[i];
@@ -776,6 +796,28 @@ protected:
 		}
 	}
 
+	template<pixel_type Pixel_tmp> requires (!pixel_traits<Pixel_tmp>::alpha)
+	Pixel read_pixel (span<const u8>::const_iterator& itr, const Pixel_tmp& trns_pixel) {
+		using U = typename pixel_traits<Pixel_tmp>::channel_type;
+		if constexpr (pixel_traits<Pixel_tmp>::rgb) {
+			U R = readBE<U>(itr);
+			U G = readBE<U>(itr);
+			U B = readBE<U>(itr);
+			if (RGB<U>(R, G, B) == trns_pixel) {
+				return Pixel(RGBA<U>(R, G, B, 0));
+			} else {
+				return Pixel(R, G, B);
+			}
+		} else {
+			U Y = readBE<U>(itr);
+			if (Grey<U>(Y) == trns_pixel) {
+				return Pixel(GreyAlpha<U>(Y, 0));
+			} else {
+				return Pixel(Y);
+			}
+		}
+	}
+
 	template<pixel_type Pixel_tmp>
 	void read_direct_scanlines (
 		const vector<span<const u8>>& scanlines,
@@ -796,6 +838,27 @@ protected:
 		}
 	}
 
+	template<pixel_type Pixel_tmp> requires (!pixel_traits<Pixel_tmp>::alpha)
+	void read_direct_scanlines (
+		const vector<span<const u8>>& scanlines,
+		const u32 y0,
+		const u32 dy,
+		const u32 x0,
+		const u32 dx,
+		const Pixel_tmp& trns_pixel
+	) {
+		u32 y = y0;
+		for (const auto& scanline : scanlines) {
+			auto data_itr = data[y].begin() + x0;
+			auto itr = scanline.begin();
+			while (itr < scanline.end()) {
+				*data_itr = read_pixel<Pixel_tmp>(itr, trns_pixel);
+				data_itr += dx;
+			}
+			y += dy;
+		}
+	}
+
 	// チャンネル数が1のGreyのみが対象
 	template<u8 bit_depth> requires (is_png_subbyte<bit_depth>)
 	void read_direct_scanline (
@@ -807,36 +870,47 @@ protected:
 		const u32 width = data_row.size();
 		auto data_itr = data_row.begin() + x0;
 		u32 pixel_count = calc_pixel_count(width, x0, dx);
+		constexpr u8 mask = (1 << bit_depth) - 1;
 		T Y;
-		if constexpr (bit_depth == 1) {
-			for (const u8 byte : scanline) {
-				for (u8 shift = 8; shift > 0;) {
-					shift -= 1;
-					if (pixel_count-- == 0) return;
-					Y = convert_bitdepth<T, bit_depth>((byte >> shift) & 1);
-					*data_itr = Pixel(Y);
-					data_itr += dx;
-				}
+		for (const u8 byte : scanline) {
+			for (u8 shift = 8; shift > 0;) {
+				shift -= bit_depth;
+				if (pixel_count-- == 0) return;
+				Y = convert_bitdepth<T, bit_depth>((byte >> shift) & mask);
+				*data_itr = Pixel(Y);
+				data_itr += dx;
 			}
-		} else if constexpr (bit_depth == 2) {
-			for (const u8 byte : scanline) {
-				for (u8 shift = 8; shift > 0;) {
-					shift -= 2;
-					if (pixel_count-- == 0) return;
-					Y = convert_bitdepth<T, bit_depth>((byte >> shift) & 3);
+		}
+	}
+
+	// チャンネル数が1のGreyのみが対象
+	template<u8 bit_depth> requires (is_png_subbyte<bit_depth>)
+	void read_direct_scanline (
+		const span<const u8> scanline,
+		span<Pixel> data_row,
+		const u32 x0,
+		const u32 dx,
+		const u16 trns_value
+	) {
+		const u32 width = data_row.size();
+		auto data_itr = data_row.begin() + x0;
+		u32 pixel_count = calc_pixel_count(width, x0, dx);
+		constexpr u8 mask = (1 << bit_depth) - 1;
+		u16 Y_;
+		T Y;
+		for (const u8 byte : scanline) {
+			for (u8 shift = 8; shift > 0;) {
+				shift -= bit_depth;
+				if (pixel_count-- == 0) return;
+				Y_ = (byte >> shift) & mask;
+				bool is_trns = (Y_ == trns_value);
+				Y = convert_bitdepth<T, bit_depth>(Y_);
+				if (is_trns) {
+					*data_itr = Pixel(GreyAlpha<T>(Y, 0));
+				} else {
 					*data_itr = Pixel(Y);
-					data_itr += dx;
 				}
-			}
-		} else if constexpr (bit_depth == 4) {
-			for (const u8 byte : scanline) {
-				for (u8 shift = 8; shift > 0;) {
-					shift -= 4;
-					if (pixel_count-- == 0) return;
-					Y = convert_bitdepth<T, bit_depth>((byte >> shift) & 15);
-					*data_itr = Pixel(Y);
-					data_itr += dx;
-				}
+				data_itr += dx;
 			}
 		}
 	}
@@ -847,12 +921,21 @@ protected:
 		const u32 y0,
 		const u32 dy,
 		const u32 x0,
-		const u32 dx
+		const u32 dx,
+		const bool has_trns,
+		const u16 trns_value
 	) {
 		u32 y = y0;
-		for (const auto& scanline : scanlines) {
-			read_direct_scanline<bit_depth>(scanline, data[y], x0, dx);
-			y += dy;
+		if (has_trns) {
+			for (const auto& scanline : scanlines) {
+				read_direct_scanline<bit_depth>(scanline, data[y], x0, dx, trns_value);
+				y += dy;
+			}
+		} else {
+			for (const auto& scanline : scanlines) {
+				read_direct_scanline<bit_depth>(scanline, data[y], x0, dx);
+				y += dy;
+			}
 		}
 	}
 
@@ -862,7 +945,9 @@ protected:
 		const u32 W,
 		const u8 bit_depth,
 		const u8 color_type,
-		const u8 interlace_method
+		const u8 interlace_method,
+		const bool has_trns,
+		const array<u16, 3>& trns
 	) {
 		const u8 offset = bit_depth < 8 ? 1 : colortype2channel[color_type] * bit_depth / 8;
 		for (u8 i = (interlace_method ? 0 : 7); i < (interlace_method ? 7 : 8); ++i) {
@@ -877,24 +962,38 @@ protected:
 			vector<span<const u8>> scanlines;
 			if (!unfilterer(itr, scanlines, offset, scanline_size, pixel_count_y)) return false;
 			switch (bit_depth) {
-			case 1: read_direct_scanlines<1>(scanlines, y0, dy, x0, dx); break;
-			case 2: read_direct_scanlines<2>(scanlines, y0, dy, x0, dx); break;
-			case 4: read_direct_scanlines<4>(scanlines, y0, dy, x0, dx); break;
+			case 1: read_direct_scanlines<1>(scanlines, y0, dy, x0, dx, has_trns, trns[0]); break;
+			case 2: read_direct_scanlines<2>(scanlines, y0, dy, x0, dx, has_trns, trns[0]); break;
+			case 4: read_direct_scanlines<4>(scanlines, y0, dy, x0, dx, has_trns, trns[0]); break;
 			case 8: {
+				if (has_trns) {
+				switch (color_type) {
+				case 0: read_direct_scanlines<Grey<u8>>(scanlines, y0, dy, x0, dx, Grey<u8>(trns[0])); break;
+				case 2: read_direct_scanlines<RGB<u8>>(scanlines, y0, dy, x0, dx, RGB<u8>(trns[0], trns[1], trns[2])); break;
+				}
+				} else {
 				switch (color_type) {
 				case 0: read_direct_scanlines<Grey<u8>>(scanlines, y0, dy, x0, dx); break;
 				case 2: read_direct_scanlines<RGB<u8>>(scanlines, y0, dy, x0, dx); break;
 				case 4: read_direct_scanlines<GreyAlpha<u8>>(scanlines, y0, dy, x0, dx); break;
 				case 6: read_direct_scanlines<RGBA<u8>>(scanlines, y0, dy, x0, dx); break;
 				}
+				}
 				break;
 			}
 			case 16: {
+				if (has_trns) {
+				switch (color_type) {
+				case 0: read_direct_scanlines<Grey<u16>>(scanlines, y0, dy, x0, dx, Grey<u16>(trns[0])); break;
+				case 2: read_direct_scanlines<RGB<u16>>(scanlines, y0, dy, x0, dx, RGB<u16>(trns[0], trns[1], trns[2])); break;
+				}
+				} else {
 				switch (color_type) {
 				case 0: read_direct_scanlines<Grey<u16>>(scanlines, y0, dy, x0, dx); break;
 				case 2: read_direct_scanlines<RGB<u16>>(scanlines, y0, dy, x0, dx); break;
 				case 4: read_direct_scanlines<GreyAlpha<u16>>(scanlines, y0, dy, x0, dx); break;
 				case 6: read_direct_scanlines<RGBA<u16>>(scanlines, y0, dy, x0, dx); break;
+				}
 				}
 				break;
 			}
