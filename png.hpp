@@ -332,6 +332,8 @@ protected:
 			);
 		}
 
+		if (filtered_size > limits<uInt>::max()) return false; // too large to allocate
+
 		filtered_stream.resize(filtered_size);
 		inflater.set_output(filtered_stream.data(), filtered_size);
 
@@ -355,8 +357,9 @@ protected:
 		span<RGBA8>& palette,
 		u8 bit_depth
 	) {
-		if (length > u32((1 << bit_depth) * 3) || length % 3 > 0) return false;
-		u16 palette_size = length / 3;
+		if (length > u32((1 << bit_depth) * 3)) return false;
+		if (length % 3 != 0) return false;
+		const u16 palette_size = length / 3;
 		for (u16 i = 0; i < palette_size; ++i) {
 			palette_base[i].R = *itr++;
 			palette_base[i].G = *itr++;
