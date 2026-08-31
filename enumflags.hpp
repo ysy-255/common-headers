@@ -1,3 +1,7 @@
+#ifndef ENUMFLAGS_HPP
+#define ENUMFLAGS_HPP
+
+
 #include <bitset>
 #include <cstddef>
 #include <type_traits>
@@ -88,3 +92,6 @@ public:
 		return *this;
 	}
 };
+
+
+#endif

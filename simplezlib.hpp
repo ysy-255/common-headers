@@ -1,5 +1,5 @@
-#ifndef ZLIB_WRAPPER_HPP
-#define ZLIB_WRAPPER_HPP
+#ifndef SIMPLEZLIB_HPP
+#define SIMPLEZLIB_HPP
 
 #include <zlib.h>
 
