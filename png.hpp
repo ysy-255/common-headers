@@ -3,8 +3,6 @@
 
 #include <cmath>
 #include <array>
-#include <iostream>
-using std::clog; using std::cerr;
 
 #include "file.hpp"
 #include "image.hpp"

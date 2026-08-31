@@ -1,4 +1,10 @@
+#include <iostream>
+
 #include "common-headers/png.hpp"
+
+using std::clog;
+using std::cerr;
+using std::endl;
 
 const string base_path = "samples/PngSuite/files/";
 const string file_format = ".png";
@@ -19,9 +25,9 @@ int main() {
 		const auto file_path = base_path + filename;
 		PNG png;
 		if (png.read(file_path) != PNG::Err::NONE) {
-			printf("Failed to read %s\n", file_path.c_str());
+			cerr << "Failed to read " << file_path << endl;
 		} else {
-			printf("Successfully read %s\n", file_path.c_str());
+			clog << "Successfully read " << file_path << endl;
 			png.write(file_path.substr(0, file_path.size() - file_format.size()) + "_out.png");
 		}
 	}
