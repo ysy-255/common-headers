@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <type_traits>
 #include <initializer_list>
-#include <utility>
 
 using std::bitset;
 using std::size_t;
@@ -18,8 +17,8 @@ concept enum_type = std::is_enum_v<E>;
 template<enum_type E, E Count>
 class EnumFlags{
 private:
-	static constexpr size_t N = static_cast<size_t>(std::to_underlying(Count));
-	static constexpr size_t index (const E e) {return static_cast<size_t>(std::to_underlying(e));}
+	static constexpr size_t N = static_cast<size_t>(static_cast<std::underlying_type_t<E>>(Count));
+	static constexpr size_t index (const E e) {return static_cast<size_t>(static_cast<std::underlying_type_t<E>>(e));}
 	bitset<N> flags;
 public:
 	constexpr EnumFlags() = default;
