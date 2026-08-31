@@ -8,6 +8,9 @@
 
 namespace Rand{
 	inline std::mt19937 state;
+	inline void seed(u32 s){
+		state.seed(s);
+	}
 	// [0, maximum)
 	inline u32 value (u32 maximum) {
 		return u64(state()) * maximum >> 32;
