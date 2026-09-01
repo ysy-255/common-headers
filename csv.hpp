@@ -140,7 +140,7 @@ public:
 		warn = Warn::NONE;
 		vector<u8> src = readFile(path);
 		data = {{}};
-		reader_init(src);
+		reader_init(src, r_op);
 		while (reader.now != reader.end) {
 			if (r_op.trim_space) read_space();
 			if (reader.now == reader.end) break;
@@ -228,9 +228,10 @@ private:
 		vector<u8>::iterator l, now, end;
 		ReadOptions op;
 	} reader;
-	void reader_init (vector<u8>& src) {
+	void reader_init (vector<u8>& src, ReadOptions r_op) {
 		reader.now = reader.l = src.begin();
 		reader.end = src.end();
+		reader.op = r_op;
 	}
 
 
