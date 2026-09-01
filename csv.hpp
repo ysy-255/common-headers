@@ -1,28 +1,65 @@
 #ifndef CSV_HPP
 #define CSV_HPP
 
+#include <span>
+
 #include "file.hpp"
+
+using std::string;
+using std::span;
 
 class CSV{
 public:
-	CSV() {}
-	CSV (const vector<vector<string>>& init_data) : data (init_data) {}
-	CSV (const CSV& csv) : data(csv.data) {}
-	CSV (const string& path){
+	CSV() = default;
+	CSV (const CSV& csv) = default;
+	CSV (const vector<vector<string>>& init_data) : data_ (init_data) {}
+	CSV (const string& path) {
 		read(path);
 	}
+	CSV (const vector<string>& header, const vector<vector<string>>& records) {
+		data_.clear();
+		data_.push_back(header);
+		data_.insert(data_.end(), records.begin(), records.end());
+	}
+	CSV& operator= (const vector<vector<string>>& init_data) {
+		data_ = init_data;
+		return *this;
+	}
 
-	vector<string>& operator[] (const size_t h){ return data[h]; }
-	const vector<string>& operator[] (const size_t h) const{ return data[h]; }
-	size_t size() const{ return data.size(); }
-	auto begin() { return data.begin(); }
-	auto end() { return data.end(); }
-	auto begin() const{ return data.begin(); }
-	auto end() const{ return data.end(); }
+	const vector<vector<string>>& data() const{ return data_; }
+	vector<vector<string>>& data() { return data_; }
+	vector<vector<string>> copy_data() const{ return data_; }
 
-	auto head() const{ return data.front(); }
-	auto data_begin() const { return data.begin() + 1; }
-	auto data_end() const { return data.end(); }
+	const vector<string>& operator[] (const size_t h) const{ return data_[h]; }
+	const vector<string>& row (const size_t h) const{ return data_[h]; }
+	vector<string>& operator[] (const size_t h) { return data_[h]; }
+	vector<string>& row (const size_t h) { return data_[h]; }
+	vector<string> copy_row (const size_t h) const{ return data_[h]; }
+
+	vector<string> copy_col (const size_t w) const {
+		vector<string> res;
+		for (const auto& row : data_) {
+			res.push_back(w < row.size() ? row[w] : "");
+		}
+		return res;
+	}
+
+	size_t size() const{ return data_.size(); }
+	auto begin() { return data_.begin(); }
+	auto end() { return data_.end(); }
+	auto begin() const{ return data_.begin(); }
+	auto end() const{ return data_.end(); }
+
+	// ヘッダー付きのCSV用
+	const vector<string>& header() const{ return data_.front(); }
+	vector<string>& header() { return data_.front(); }
+	vector<string> copy_header() { return data_.front(); }
+	auto record_begin() const { return data_.begin() + 1; }
+	auto record_end() const { return data_.end(); }
+	span<const vector<string>> records() const { return {data_.begin() + 1, data_.end()}; }
+	// レコード全体を書き換えることはできませんが、個々のレコードは書き換えることができます
+	span<vector<string>> access_records() { return {data_.begin() + 1, data_.end()}; }
+	vector<vector<string>> copy_records() const { return {data_.begin() + 1, data_.end()}; }
 
 	enum class Warn{
 		NONE,
@@ -39,14 +76,13 @@ public:
 		bool align_width = true;
 		u32 min_width = 0;
 		bool all_dquote = false;
-		WriteOptions() {}
 	};
 
 	Err read (const string& path) {
 		err = Err::NONE;
 		warn = Warn::NONE;
 		vector<u8> src = readFile(path);
-		data = {{}};
+		data_ = {{}};
 		reader_init(src);
 		while (reader.now != reader.end) {
 			u8 c = *reader.now;
@@ -66,13 +102,13 @@ public:
 		return err;
 	}
 
-	void write (const string& path, WriteOptions w_op = {}) {
+	void write (const string& path, WriteOptions w_op) {
 		vector<u8> stream;
 		if (w_op.align_width)
-			for (const auto& row : data)
+			for (const auto& row : data_)
 				if (row.size() > w_op.min_width)
 					w_op.min_width = row.size();
-		for (const auto& row : data) {
+		for (const auto& row : data_) {
 			bool first = true;
 			for (const string& el : row) {
 				if (!first) stream.push_back(',');
@@ -111,7 +147,7 @@ public:
 
 private:
 
-	vector<vector<string>> data = {{}};
+	vector<vector<string>> data_ = {{}};
 
 	struct ReadContext{
 		vector<u8>::iterator l, now, end;
@@ -133,7 +169,7 @@ private:
 
 	// ノーマルフィールドでデータを追加
 	void read_push() {
-		data.back().emplace_back(reader.l, reader.now);
+		data_.back().emplace_back(reader.l, reader.now);
 	}
 	// ノーマルフィールドを処理
 	void read_normal() {
@@ -143,7 +179,7 @@ private:
 
 	// クォーテーションフィールドでデータを足す
 	void read_add() {
-		data.back().back() += string(reader.l, reader.now);
+		data_.back().back() += string(reader.l, reader.now);
 	}
 
 	// クォーテーションフィールドの処理の中核
@@ -166,7 +202,7 @@ private:
 					}
 					return;
 				} else {
-					data.back().back().push_back('"');
+					data_.back().back().push_back('"');
 					reader.now ++;
 					reader.l = reader.now + 1;
 				}
@@ -179,7 +215,7 @@ private:
 	void read_dquote() {
 		reader.now ++;
 		reader.l = reader.now;
-		data.back().push_back("");
+		data_.back().push_back("");
 		read_dquote_inner();
 	}
 
@@ -199,7 +235,7 @@ private:
 		}
 		reader.now ++;
 		if (reader.now == reader.end) return;
-		data.push_back({});
+		data_.push_back({});
 		reader.l = reader.now;
 	}
 
