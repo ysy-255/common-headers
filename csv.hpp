@@ -100,7 +100,7 @@ public:
 	// ヘッダー付きのCSV用
 	const vector<string>& header() const{ return data.front(); }
 	vector<string>& header() { return data.front(); }
-	vector<string> copy_header() { return data.front(); }
+	vector<string> copy_header() const{ return data.front(); }
 	auto hrecord_begin() const { return data.begin() + 1; }
 	auto hrecord_end() const { return data.end(); }
 	span<const vector<string>> hrecords() const { return {data.begin() + 1, data.end()}; }
