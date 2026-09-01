@@ -174,7 +174,8 @@ public:
 				if (row.size() > w_op.min_width)
 					w_op.min_width = row.size();
 		bool firstrow = true;
-		for (auto& row : data) {
+		for (const auto& row_ : data) {
+			auto row = row_;
 			if (!firstrow) {
 				stream.push_back(CR);
 				stream.push_back(LF);
@@ -207,9 +208,6 @@ public:
 					stream.insert(stream.end(), el.begin(), el.end());
 				}
 			}
-			if (w_op.min_width)
-				if (width < w_op.min_width)
-					row.resize(width);
 		}
 		writeFile(path, stream);
 	}
