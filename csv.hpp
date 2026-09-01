@@ -267,6 +267,8 @@ private:
 				} else {
 					if (reader.op.trim_space) {
 						read_space();
+						if (reader.now == reader.end) return;
+						c = *reader.now;
 					}
 					if (c != COMMA && c != CR && c != LF) {
 						warn = Warn::UNEXPECT_AFTER_DQUOTE;
