@@ -8,6 +8,40 @@
 using std::string;
 using std::span;
 
+// [RFC4180](https://datatracker.ietf.org/doc/html/rfc4180)よりも緩くCSVを扱うクラス
+/**
+ * 読み込み時は、UTF-8を想定したデータを読み込み、空行を無視します。\n
+ * 詳しい仕様は以下を参照してください。\n
+ * 最も詳しい仕様は実装を参照してください。\n
+ * \n
+ * ABNF形式で、このクラスで読み込む未実装の仕様`CSVR`および書き出す未実装の仕様`CSVW`を定義します。\n
+ * ([RFC4180](https://datatracker.ietf.org/doc/html/rfc4180)のものは`CSVO`とします)\n
+ * `CR` = %x0D\n
+ * `LF` = %x0A\n
+ * `DQUOTE` = %x22\n
+ * `COMMA` = %x2C\n
+ * `CRLF` = `CR` `LF`\n
+ * `TEXTDATARW` = %x00-09 / %x0B-0C / %x0E-21 / %x23-2B / %x2D-FF ; `OCTET` - (`CR` / `LF` / `DQUOTE` / `COMMA`)\n
+ * `TEXTDATAO` = %x20-21 / %x23-2B / %x2D-7E ; `VCHAR` - (`DQUOTE` / `COMMA`)\n
+ * `non-escapedR` = \*(`TEXTDATARW`) / (`TEXTDATARW` \*(`TEXTDATARW` / `DQUOTE`))\n
+ * `non-escapedW` = 1\*(`TEXTDATARW`)\n
+ * `non-escapedO` = \*(`TEXTDATAO`)\n
+ * `escapedRW` = `DQUOTE` \*(`TEXTDATARW` / `COMMA` / `CR` / `LF` / 2`DQUOTE`) `DQUOTE`\n
+ * `escapedO` = `DQUOTE` \*(`TEXTDATAO` / `COMMA` / `CR` / `LF` / 2`DQUOTE`) `DQUOTE`\n
+ * `fieldR` = `non-escapedR` / `escapedRW`\n
+ * `fieldW` = `non-escapedW` / `escapedRW`\n
+ * `fieldO` = `non-escapedO` / `escapedO`\n
+ * `recordR` = `fieldR` \*(`COMMA` \*(%x20 / %x09) `fieldR`)\n
+ * `recordW` = `fieldW` \*(`COMMA` `fieldW`)\n
+ * `recordO` = `fieldO` \*(`COMMA` `fieldO`)\n
+ * `headerR` = `recordR`\n
+ * `headerO` = `recordO`\n
+ * `line-breakR` = 1\*(`CR` / `LF`)\n
+ * `line-breakWO` = `CRLF`\n
+ * `CSVR` = [`headerR` `line-breakR`] `recordR` \*(`line-breakR` `recordR`) [`line-breakR`]\n
+ * `CSVW` = `recordW` \*(`line-breakWO` `recordW`)\n
+ * `CSVO` = [`headerO` `line-breakWO`] `recordO` \*(`line-breakWO` `recordO`) [`line-breakWO`]
+ */
 class CSV{
 public:
 	CSV() = default;
