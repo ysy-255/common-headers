@@ -3,21 +3,27 @@
 #include "../file.hpp"
 #include "../csv.hpp"
 
-const std::string src_path = "cases/csv/in/";
-const std::string dst_path = "cases/csv/out/";
+using std::cerr;
+using std::clog;
+using std::endl;
 
-int main(){
-	auto paths = getFileList(src_path);
-	for(auto path : paths){
-		std::clog << path << ":\n";
-		CSV csv(src_path + path);
-		for(const auto & row : csv){
-			for(const std::string & el : row){
-				std::clog << el << ',';
+int main (int argc, char** argv) {
+	if (argc % 2 == 0) {
+		cerr << "Usage: " << argv[0] << " <input1.csv> <output1.csv> [<input2.csv> <output2.csv> ...]" << endl;
+		return 1;
+	}
+	for (int i = 1; i < argc; i += 2) {
+		CSV csv(argv[i]);
+		if (csv.err != CSV::Err::NONE) {
+			if (csv.err == CSV::Err::WARN) {
+				clog << "Warning: CSV file read with warnings: " << argv[i] << endl;
+			} else {
+				cerr << "Error: Failed to read the CSV file: " << argv[i] << endl;
+				return 1;
 			}
-			std::clog << '\n';
 		}
-		std::clog << '\n';
-		csv.write(dst_path + path);
+		clog << "Read: " << argv[i] << endl;
+		csv.write(argv[i + 1]);
+		clog << "Converted: " << argv[i] << " -> " << argv[i + 1] << endl;
 	}
 }
