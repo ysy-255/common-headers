@@ -101,12 +101,24 @@ public:
 	const vector<string>& header() const{ return data.front(); }
 	vector<string>& header() { return data.front(); }
 	vector<string> copy_header() const{ return data.front(); }
-	auto hrecord_begin() const { return data.begin() + 1; }
-	auto hrecord_end() const { return data.end(); }
-	span<const vector<string>> hrecords() const { return {data.begin() + 1, data.end()}; }
+	auto hrecord_begin() const{
+		if (data.size() <= 1) return data.end();
+		return data.begin() + 1;
+	}
+	auto hrecord_end() const{ return data.end(); }
+	span<const vector<string>> hrecords() const{
+		if (data.size() <= 1) return {};
+		return span<const vector<string>>(data.data() + 1, data.size() - 1);
+	}
 	// レコード全体を書き換えることはできませんが、個々のレコードは書き換えることができます
-	span<vector<string>> access_hrecords() { return {data.begin() + 1, data.end()}; }
-	vector<vector<string>> copy_hrecords() const { return {data.begin() + 1, data.end()}; }
+	span<vector<string>> access_hrecords() {
+		if (data.size() <= 1) return {};
+		return span<vector<string>>(data.data() + 1, data.size() - 1);
+	}
+	vector<vector<string>> copy_hrecords() const{
+		if (data.size() <= 1) return {};
+		return vector<vector<string>>(data.begin() + 1, data.end());
+	}
 
 	enum class Warn{
 		NONE,
