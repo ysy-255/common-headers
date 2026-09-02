@@ -1,4 +1,8 @@
 samples/PngSuite/raw
 samples/PngSuite/files
 samples/PngSuite/PngSuite*
+samples/libpng_testpng/raw
+samples/libpng_testpng/files
+samples/csv-spectrum/raw
+samples/csv-spectrum/files
 a.out
