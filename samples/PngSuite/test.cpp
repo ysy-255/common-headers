@@ -1,11 +1,12 @@
 #include <iostream>
 
-#include "common-headers/png.hpp"
+#include "../../png.hpp"
 
 using std::clog;
 using std::cerr;
 using std::endl;
 using std::sort;
+using std::string;
 
 const string base_path = "samples/PngSuite/files/";
 const string file_format = ".png";
