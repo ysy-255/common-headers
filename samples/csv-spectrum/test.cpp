@@ -1,7 +1,6 @@
 #include <iostream>
 
-#include "common-headers/file.hpp"
-#include "common-headers/csv.hpp"
+#include "../../csv.hpp"
 
 // https://github.com/max-mapper/csv-spectrum
 const string base_path = "samples/csv-spectrum/files/";
